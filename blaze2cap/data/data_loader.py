@@ -147,6 +147,10 @@ class PoseSequenceDataset(data.Dataset):
         # Load data (already split at anchor frames during augmentation)
         input_data = np.load(input_path).astype(np.float32)
         gt_data = np.load(target_path).astype(np.float32)
+
+        # Sanitize NaNs/Infs to avoid training instability
+        input_data = np.nan_to_num(input_data, nan=0.0, posinf=0.0, neginf=0.0)
+        gt_data = np.nan_to_num(gt_data, nan=0.0, posinf=0.0, neginf=0.0)
         
         # Ensure alignment
         min_len = min(len(input_data), len(gt_data))
@@ -156,6 +160,13 @@ class PoseSequenceDataset(data.Dataset):
         # Process features: 7 raw channels -> 18 feature channels per joint
         # Output: X (F, N, 450), M (F, N)
         X, M = self._process_vectorized(input_data)
+
+        # Final safety against NaNs/Infs after processing
+        X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
+        M = np.nan_to_num(M, nan=1.0, posinf=1.0, neginf=1.0)
+
+        # Clamp features to a reasonable range to avoid overflow
+        X = np.clip(X, -10.0, 10.0)
         
         # Window GT to match input windowing
         # GT shape: (min_len, 22, 6) -> flatten to (min_len, 132)
@@ -176,14 +187,13 @@ class PoseSequenceDataset(data.Dataset):
         Y_windows = np.lib.stride_tricks.as_strided(
             full_gt, shape=(F, N, 132), strides=strides
         )
+
+        Y_windows = np.nan_to_num(Y_windows, nan=0.0, posinf=0.0, neginf=0.0)
+        Y_windows = np.clip(Y_windows, -2.0, 2.0)
         
-        # Return windowed data
-        # Note: For prediction, we typically predict the LAST frame of each window
-        # So target is Y_windows[:, -1, :] (the last frame in each window)
-        # But for sequence-to-sequence, we keep the full window
-        
+        # Return windowed data (sequence-to-sequence)
         return {
             "source": torch.from_numpy(X.copy()),       # (F, window, 450)
             "mask": torch.from_numpy(M.copy()),         # (F, window) - True = padding
-            "target": torch.from_numpy(Y_windows[:, -1, :].copy())  # (F, 132) - predict last frame
+            "target": torch.from_numpy(Y_windows.copy())  # (F, window, 132)
         }

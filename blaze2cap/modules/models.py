@@ -58,7 +58,9 @@ class CausalSelfAttention(nn.Module):
         
         # generate causal mask (time constraints)
         # prevents looking at future tokens/frames
-        causal_mask = torch.triu(torch.ones(N, N) * float('-inf'), diagonal=1).to(x.device)
+        causal_mask = torch.triu(
+            torch.ones(N, N, device=x.device, dtype=torch.bool), diagonal=1
+        )
         
         out, weights = self.attn(
             query =x, 

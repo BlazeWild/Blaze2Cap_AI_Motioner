@@ -15,7 +15,7 @@ os.makedirs(output_dir, exist_ok=True)
 output_json = os.path.join(output_dir, "dataset_map.json")
 
 # 4. Load cam5 exclusion list
-cam5_exclude_file = os.path.join(dataset_root, "gardbage_cam5.txt")
+cam5_exclude_file = os.path.join(dataset_root, "..", "garbagecam5.txt")
 cam5_exclude = {}  # {subject: [actions]}
 
 if os.path.exists(cam5_exclude_file):
