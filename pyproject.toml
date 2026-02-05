@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blaze2cap"
+version = "0.1.0"
+description = "Real-Time 3D Motion Prediction from 2D/3D Pose Landmarks"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "BlazeWild", email = "your.email@example.com"}
+]
+keywords = ["motion-prediction", "pose-estimation", "3d-motion", "transformer", "deep-learning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "torchaudio>=2.0.0",
+    "numpy>=1.20.0",
+    "mediapipe==0.10.14",
+    "tqdm>=4.60.0",
+    "opencv-python>=4.5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=22.0.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+]
+viz = [
+    "matplotlib>=3.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/BlazeWild/Blaze2Cap"
+Repository = "https://github.com/BlazeWild/Blaze2Cap.git"
+Issues = "https://github.com/BlazeWild/Blaze2Cap/issues"
+
+[tool.setuptools]
+packages = ["blaze2cap", "blaze2cap.data", "blaze2cap.modules", "blaze2cap.modeling", "blaze2cap.utils", "tools", "test"]
+
+[tool.setuptools.package-data]
+blaze2cap = ["dataset/**/*"]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | build
+  | dist
+  | __pycache__
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

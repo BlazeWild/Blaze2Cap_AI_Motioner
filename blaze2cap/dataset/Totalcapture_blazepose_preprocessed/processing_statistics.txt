@@ -1,0 +1,2763 @@
+FINAL DATASET PREPARATION - DETAILED STATISTICS
+================================================================================
+
+
+S1 - acting1
+  GT Original Frames: 4115
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 4115 frames
+      GT Original: 4115 frames
+      Synced Frames: 4115 frames
+      BlazePose Shape: (4115, 33, 4)
+      GT Shape: (4115, 17, 3)
+
+    cam2:
+      BlazePose Original: 4115 frames
+      GT Original: 4115 frames
+      Synced Frames: 2521 frames
+      BlazePose Shape: (2521, 33, 4)
+      GT Shape: (2521, 17, 3)
+
+    cam3:
+      BlazePose Original: 4115 frames
+      GT Original: 4115 frames
+      Synced Frames: 4070 frames
+      BlazePose Shape: (4070, 33, 4)
+      GT Shape: (4070, 17, 3)
+
+    cam4:
+      BlazePose Original: 4115 frames
+      GT Original: 4115 frames
+      Synced Frames: 4115 frames
+      BlazePose Shape: (4115, 33, 4)
+      GT Shape: (4115, 17, 3)
+
+    cam5:
+      BlazePose Original: 4115 frames
+      GT Original: 4115 frames
+      Synced Frames: 4114 frames
+      BlazePose Shape: (4114, 33, 4)
+      GT Shape: (4114, 17, 3)
+
+    cam6:
+      BlazePose Original: 4115 frames
+      GT Original: 4115 frames
+      Synced Frames: 3978 frames
+      BlazePose Shape: (3978, 33, 4)
+      GT Shape: (3978, 17, 3)
+
+    cam7:
+      BlazePose Original: 4115 frames
+      GT Original: 4115 frames
+      Synced Frames: 3421 frames
+      BlazePose Shape: (3421, 33, 4)
+      GT Shape: (3421, 17, 3)
+
+    cam8:
+      BlazePose Original: 4115 frames
+      GT Original: 4115 frames
+      Synced Frames: 4115 frames
+      BlazePose Shape: (4115, 33, 4)
+      GT Shape: (4115, 17, 3)
+
+S1 - acting2
+  GT Original Frames: 3704
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3703 frames
+      GT Original: 3704 frames
+      Synced Frames: 3703 frames
+      BlazePose Shape: (3703, 33, 4)
+      GT Shape: (3703, 17, 3)
+
+    cam2:
+      BlazePose Original: 3703 frames
+      GT Original: 3704 frames
+      Synced Frames: 1855 frames
+      BlazePose Shape: (1855, 33, 4)
+      GT Shape: (1855, 17, 3)
+
+    cam3:
+      BlazePose Original: 3703 frames
+      GT Original: 3704 frames
+      Synced Frames: 3596 frames
+      BlazePose Shape: (3596, 33, 4)
+      GT Shape: (3596, 17, 3)
+
+    cam4:
+      BlazePose Original: 3703 frames
+      GT Original: 3704 frames
+      Synced Frames: 3591 frames
+      BlazePose Shape: (3591, 33, 4)
+      GT Shape: (3591, 17, 3)
+
+    cam5:
+      BlazePose Original: 3703 frames
+      GT Original: 3704 frames
+      Synced Frames: 3702 frames
+      BlazePose Shape: (3702, 33, 4)
+      GT Shape: (3702, 17, 3)
+
+    cam6:
+      BlazePose Original: 3703 frames
+      GT Original: 3704 frames
+      Synced Frames: 3548 frames
+      BlazePose Shape: (3548, 33, 4)
+      GT Shape: (3548, 17, 3)
+
+    cam7:
+      BlazePose Original: 3703 frames
+      GT Original: 3704 frames
+      Synced Frames: 2941 frames
+      BlazePose Shape: (2941, 33, 4)
+      GT Shape: (2941, 17, 3)
+
+    cam8:
+      BlazePose Original: 3703 frames
+      GT Original: 3704 frames
+      Synced Frames: 3703 frames
+      BlazePose Shape: (3703, 33, 4)
+      GT Shape: (3703, 17, 3)
+
+S1 - acting3
+  GT Original Frames: 2770
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 2682 frames
+      GT Original: 2770 frames
+      Synced Frames: 2682 frames
+      BlazePose Shape: (2682, 33, 4)
+      GT Shape: (2682, 17, 3)
+
+    cam2:
+      BlazePose Original: 2679 frames
+      GT Original: 2770 frames
+      Synced Frames: 517 frames
+      BlazePose Shape: (517, 33, 4)
+      GT Shape: (517, 17, 3)
+
+    cam3:
+      BlazePose Original: 2679 frames
+      GT Original: 2770 frames
+      Synced Frames: 2656 frames
+      BlazePose Shape: (2656, 33, 4)
+      GT Shape: (2656, 17, 3)
+
+    cam4:
+      BlazePose Original: 2679 frames
+      GT Original: 2770 frames
+      Synced Frames: 2546 frames
+      BlazePose Shape: (2546, 33, 4)
+      GT Shape: (2546, 17, 3)
+
+    cam5:
+      BlazePose Original: 2682 frames
+      GT Original: 2770 frames
+      Synced Frames: 2681 frames
+      BlazePose Shape: (2681, 33, 4)
+      GT Shape: (2681, 17, 3)
+
+    cam6:
+      BlazePose Original: 2682 frames
+      GT Original: 2770 frames
+      Synced Frames: 2682 frames
+      BlazePose Shape: (2682, 33, 4)
+      GT Shape: (2682, 17, 3)
+
+    cam7:
+      BlazePose Original: 2769 frames
+      GT Original: 2770 frames
+      Synced Frames: 2484 frames
+      BlazePose Shape: (2484, 33, 4)
+      GT Shape: (2484, 17, 3)
+
+    cam8:
+      BlazePose Original: 2681 frames
+      GT Original: 2770 frames
+      Synced Frames: 2681 frames
+      BlazePose Shape: (2681, 33, 4)
+      GT Shape: (2681, 17, 3)
+
+S1 - freestyle1
+  GT Original Frames: 2313
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 2313 frames
+      GT Original: 2313 frames
+      Synced Frames: 2313 frames
+      BlazePose Shape: (2313, 33, 4)
+      GT Shape: (2313, 17, 3)
+
+    cam2:
+      BlazePose Original: 2313 frames
+      GT Original: 2313 frames
+      Synced Frames: 1534 frames
+      BlazePose Shape: (1534, 33, 4)
+      GT Shape: (1534, 17, 3)
+
+    cam3:
+      BlazePose Original: 2313 frames
+      GT Original: 2313 frames
+      Synced Frames: 2250 frames
+      BlazePose Shape: (2250, 33, 4)
+      GT Shape: (2250, 17, 3)
+
+    cam4:
+      BlazePose Original: 2313 frames
+      GT Original: 2313 frames
+      Synced Frames: 2313 frames
+      BlazePose Shape: (2313, 33, 4)
+      GT Shape: (2313, 17, 3)
+
+    cam5:
+      BlazePose Original: 2313 frames
+      GT Original: 2313 frames
+      Synced Frames: 2312 frames
+      BlazePose Shape: (2312, 33, 4)
+      GT Shape: (2312, 17, 3)
+
+    cam6:
+      BlazePose Original: 2313 frames
+      GT Original: 2313 frames
+      Synced Frames: 2313 frames
+      BlazePose Shape: (2313, 33, 4)
+      GT Shape: (2313, 17, 3)
+
+    cam7:
+      BlazePose Original: 2313 frames
+      GT Original: 2313 frames
+      Synced Frames: 2168 frames
+      BlazePose Shape: (2168, 33, 4)
+      GT Shape: (2168, 17, 3)
+
+    cam8:
+      BlazePose Original: 2313 frames
+      GT Original: 2313 frames
+      Synced Frames: 2313 frames
+      BlazePose Shape: (2313, 33, 4)
+      GT Shape: (2313, 17, 3)
+
+S1 - freestyle2
+  GT Original Frames: 2464
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 2464 frames
+      GT Original: 2464 frames
+      Synced Frames: 2464 frames
+      BlazePose Shape: (2464, 33, 4)
+      GT Shape: (2464, 17, 3)
+
+    cam2:
+      BlazePose Original: 2464 frames
+      GT Original: 2464 frames
+      Synced Frames: 2034 frames
+      BlazePose Shape: (2034, 33, 4)
+      GT Shape: (2034, 17, 3)
+
+    cam3:
+      BlazePose Original: 2464 frames
+      GT Original: 2464 frames
+      Synced Frames: 2442 frames
+      BlazePose Shape: (2442, 33, 4)
+      GT Shape: (2442, 17, 3)
+
+    cam4:
+      BlazePose Original: 2464 frames
+      GT Original: 2464 frames
+      Synced Frames: 2464 frames
+      BlazePose Shape: (2464, 33, 4)
+      GT Shape: (2464, 17, 3)
+
+    cam5:
+      BlazePose Original: 2464 frames
+      GT Original: 2464 frames
+      Synced Frames: 2464 frames
+      BlazePose Shape: (2464, 33, 4)
+      GT Shape: (2464, 17, 3)
+
+    cam6:
+      BlazePose Original: 2464 frames
+      GT Original: 2464 frames
+      Synced Frames: 2174 frames
+      BlazePose Shape: (2174, 33, 4)
+      GT Shape: (2174, 17, 3)
+
+    cam7:
+      BlazePose Original: 2464 frames
+      GT Original: 2464 frames
+      Synced Frames: 2295 frames
+      BlazePose Shape: (2295, 33, 4)
+      GT Shape: (2295, 17, 3)
+
+    cam8:
+      BlazePose Original: 2464 frames
+      GT Original: 2464 frames
+      Synced Frames: 2464 frames
+      BlazePose Shape: (2464, 33, 4)
+      GT Shape: (2464, 17, 3)
+
+S1 - freestyle3
+  GT Original Frames: 2040
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 2040 frames
+      GT Original: 2040 frames
+      Synced Frames: 2040 frames
+      BlazePose Shape: (2040, 33, 4)
+      GT Shape: (2040, 17, 3)
+
+    cam2:
+      BlazePose Original: 2040 frames
+      GT Original: 2040 frames
+      Synced Frames: 403 frames
+      BlazePose Shape: (403, 33, 4)
+      GT Shape: (403, 17, 3)
+
+    cam3:
+      BlazePose Original: 2040 frames
+      GT Original: 2040 frames
+      Synced Frames: 2026 frames
+      BlazePose Shape: (2026, 33, 4)
+      GT Shape: (2026, 17, 3)
+
+    cam4:
+      BlazePose Original: 2040 frames
+      GT Original: 2040 frames
+      Synced Frames: 2040 frames
+      BlazePose Shape: (2040, 33, 4)
+      GT Shape: (2040, 17, 3)
+
+    cam5:
+      BlazePose Original: 2040 frames
+      GT Original: 2040 frames
+      Synced Frames: 2039 frames
+      BlazePose Shape: (2039, 33, 4)
+      GT Shape: (2039, 17, 3)
+
+    cam6:
+      BlazePose Original: 2040 frames
+      GT Original: 2040 frames
+      Synced Frames: 2036 frames
+      BlazePose Shape: (2036, 33, 4)
+      GT Shape: (2036, 17, 3)
+
+    cam7:
+      BlazePose Original: 2040 frames
+      GT Original: 2040 frames
+      Synced Frames: 1784 frames
+      BlazePose Shape: (1784, 33, 4)
+      GT Shape: (1784, 17, 3)
+
+    cam8:
+      BlazePose Original: 2040 frames
+      GT Original: 2040 frames
+      Synced Frames: 2040 frames
+      BlazePose Shape: (2040, 33, 4)
+      GT Shape: (2040, 17, 3)
+
+S1 - rom1
+  GT Original Frames: 4892
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 4892 frames
+      GT Original: 4892 frames
+      Synced Frames: 4892 frames
+      BlazePose Shape: (4892, 33, 4)
+      GT Shape: (4892, 17, 3)
+
+    cam2:
+      BlazePose Original: 4892 frames
+      GT Original: 4892 frames
+      Synced Frames: 2482 frames
+      BlazePose Shape: (2482, 33, 4)
+      GT Shape: (2482, 17, 3)
+
+    cam3:
+      BlazePose Original: 4892 frames
+      GT Original: 4892 frames
+      Synced Frames: 4892 frames
+      BlazePose Shape: (4892, 33, 4)
+      GT Shape: (4892, 17, 3)
+
+    cam4:
+      BlazePose Original: 4892 frames
+      GT Original: 4892 frames
+      Synced Frames: 4891 frames
+      BlazePose Shape: (4891, 33, 4)
+      GT Shape: (4891, 17, 3)
+
+    cam5:
+      BlazePose Original: 4892 frames
+      GT Original: 4892 frames
+      Synced Frames: 4892 frames
+      BlazePose Shape: (4892, 33, 4)
+      GT Shape: (4892, 17, 3)
+
+    cam6:
+      BlazePose Original: 4892 frames
+      GT Original: 4892 frames
+      Synced Frames: 4892 frames
+      BlazePose Shape: (4892, 33, 4)
+      GT Shape: (4892, 17, 3)
+
+    cam7:
+      BlazePose Original: 4892 frames
+      GT Original: 4892 frames
+      Synced Frames: 4873 frames
+      BlazePose Shape: (4873, 33, 4)
+      GT Shape: (4873, 17, 3)
+
+    cam8:
+      BlazePose Original: 4892 frames
+      GT Original: 4892 frames
+      Synced Frames: 4891 frames
+      BlazePose Shape: (4891, 33, 4)
+      GT Shape: (4891, 17, 3)
+
+S1 - rom2
+  GT Original Frames: 6777
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 6776 frames
+      GT Original: 6777 frames
+      Synced Frames: 6776 frames
+      BlazePose Shape: (6776, 33, 4)
+      GT Shape: (6776, 17, 3)
+
+    cam2:
+      BlazePose Original: 6776 frames
+      GT Original: 6777 frames
+      Synced Frames: 2688 frames
+      BlazePose Shape: (2688, 33, 4)
+      GT Shape: (2688, 17, 3)
+
+    cam3:
+      BlazePose Original: 6776 frames
+      GT Original: 6777 frames
+      Synced Frames: 6776 frames
+      BlazePose Shape: (6776, 33, 4)
+      GT Shape: (6776, 17, 3)
+
+    cam4:
+      BlazePose Original: 6776 frames
+      GT Original: 6777 frames
+      Synced Frames: 6776 frames
+      BlazePose Shape: (6776, 33, 4)
+      GT Shape: (6776, 17, 3)
+
+    cam5:
+      BlazePose Original: 6776 frames
+      GT Original: 6777 frames
+      Synced Frames: 6775 frames
+      BlazePose Shape: (6775, 33, 4)
+      GT Shape: (6775, 17, 3)
+
+    cam6:
+      BlazePose Original: 6776 frames
+      GT Original: 6777 frames
+      Synced Frames: 6776 frames
+      BlazePose Shape: (6776, 33, 4)
+      GT Shape: (6776, 17, 3)
+
+    cam7:
+      BlazePose Original: 6776 frames
+      GT Original: 6777 frames
+      Synced Frames: 6761 frames
+      BlazePose Shape: (6761, 33, 4)
+      GT Shape: (6761, 17, 3)
+
+    cam8:
+      BlazePose Original: 6776 frames
+      GT Original: 6777 frames
+      Synced Frames: 6765 frames
+      BlazePose Shape: (6765, 33, 4)
+      GT Shape: (6765, 17, 3)
+
+S1 - rom3
+  GT Original Frames: 5944
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 5942 frames
+      GT Original: 5944 frames
+      Synced Frames: 5942 frames
+      BlazePose Shape: (5942, 33, 4)
+      GT Shape: (5942, 17, 3)
+
+    cam2:
+      BlazePose Original: 5942 frames
+      GT Original: 5944 frames
+      Synced Frames: 1894 frames
+      BlazePose Shape: (1894, 33, 4)
+      GT Shape: (1894, 17, 3)
+
+    cam3:
+      BlazePose Original: 5942 frames
+      GT Original: 5944 frames
+      Synced Frames: 5942 frames
+      BlazePose Shape: (5942, 33, 4)
+      GT Shape: (5942, 17, 3)
+
+    cam4:
+      BlazePose Original: 5942 frames
+      GT Original: 5944 frames
+      Synced Frames: 5942 frames
+      BlazePose Shape: (5942, 33, 4)
+      GT Shape: (5942, 17, 3)
+
+    cam5:
+      BlazePose Original: 5942 frames
+      GT Original: 5944 frames
+      Synced Frames: 5938 frames
+      BlazePose Shape: (5938, 33, 4)
+      GT Shape: (5938, 17, 3)
+
+    cam6:
+      BlazePose Original: 5942 frames
+      GT Original: 5944 frames
+      Synced Frames: 5942 frames
+      BlazePose Shape: (5942, 33, 4)
+      GT Shape: (5942, 17, 3)
+
+    cam7:
+      BlazePose Original: 5942 frames
+      GT Original: 5944 frames
+      Synced Frames: 5938 frames
+      BlazePose Shape: (5938, 33, 4)
+      GT Shape: (5938, 17, 3)
+
+    cam8:
+      BlazePose Original: 5942 frames
+      GT Original: 5944 frames
+      Synced Frames: 5941 frames
+      BlazePose Shape: (5941, 33, 4)
+      GT Shape: (5941, 17, 3)
+
+S1 - walking1
+  GT Original Frames: 3671
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3672 frames
+      GT Original: 3671 frames
+      Synced Frames: 3671 frames
+      BlazePose Shape: (3671, 33, 4)
+      GT Shape: (3671, 17, 3)
+
+    cam2:
+      BlazePose Original: 3672 frames
+      GT Original: 3671 frames
+      Synced Frames: 2197 frames
+      BlazePose Shape: (2197, 33, 4)
+      GT Shape: (2197, 17, 3)
+
+    cam3:
+      BlazePose Original: 3672 frames
+      GT Original: 3671 frames
+      Synced Frames: 3624 frames
+      BlazePose Shape: (3624, 33, 4)
+      GT Shape: (3624, 17, 3)
+
+    cam4:
+      BlazePose Original: 3672 frames
+      GT Original: 3671 frames
+      Synced Frames: 3671 frames
+      BlazePose Shape: (3671, 33, 4)
+      GT Shape: (3671, 17, 3)
+
+    cam5:
+      BlazePose Original: 3672 frames
+      GT Original: 3671 frames
+      Synced Frames: 3670 frames
+      BlazePose Shape: (3670, 33, 4)
+      GT Shape: (3670, 17, 3)
+
+    cam6:
+      BlazePose Original: 3672 frames
+      GT Original: 3671 frames
+      Synced Frames: 3374 frames
+      BlazePose Shape: (3374, 33, 4)
+      GT Shape: (3374, 17, 3)
+
+    cam7:
+      BlazePose Original: 3672 frames
+      GT Original: 3671 frames
+      Synced Frames: 3079 frames
+      BlazePose Shape: (3079, 33, 4)
+      GT Shape: (3079, 17, 3)
+
+    cam8:
+      BlazePose Original: 3672 frames
+      GT Original: 3671 frames
+      Synced Frames: 3671 frames
+      BlazePose Shape: (3671, 33, 4)
+      GT Shape: (3671, 17, 3)
+
+S1 - walking2
+  GT Original Frames: 3189
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3188 frames
+      GT Original: 3189 frames
+      Synced Frames: 3188 frames
+      BlazePose Shape: (3188, 33, 4)
+      GT Shape: (3188, 17, 3)
+
+    cam2:
+      BlazePose Original: 3188 frames
+      GT Original: 3189 frames
+      Synced Frames: 1643 frames
+      BlazePose Shape: (1643, 33, 4)
+      GT Shape: (1643, 17, 3)
+
+    cam3:
+      BlazePose Original: 3188 frames
+      GT Original: 3189 frames
+      Synced Frames: 3124 frames
+      BlazePose Shape: (3124, 33, 4)
+      GT Shape: (3124, 17, 3)
+
+    cam4:
+      BlazePose Original: 3188 frames
+      GT Original: 3189 frames
+      Synced Frames: 3097 frames
+      BlazePose Shape: (3097, 33, 4)
+      GT Shape: (3097, 17, 3)
+
+    cam5:
+      BlazePose Original: 3188 frames
+      GT Original: 3189 frames
+      Synced Frames: 3187 frames
+      BlazePose Shape: (3187, 33, 4)
+      GT Shape: (3187, 17, 3)
+
+    cam6:
+      BlazePose Original: 3188 frames
+      GT Original: 3189 frames
+      Synced Frames: 2668 frames
+      BlazePose Shape: (2668, 33, 4)
+      GT Shape: (2668, 17, 3)
+
+    cam7:
+      BlazePose Original: 3188 frames
+      GT Original: 3189 frames
+      Synced Frames: 2402 frames
+      BlazePose Shape: (2402, 33, 4)
+      GT Shape: (2402, 17, 3)
+
+    cam8:
+      BlazePose Original: 3188 frames
+      GT Original: 3189 frames
+      Synced Frames: 3188 frames
+      BlazePose Shape: (3188, 33, 4)
+      GT Shape: (3188, 17, 3)
+
+S1 - walking3
+  GT Original Frames: 3397
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3397 frames
+      GT Original: 3397 frames
+      Synced Frames: 3256 frames
+      BlazePose Shape: (3256, 33, 4)
+      GT Shape: (3256, 17, 3)
+
+    cam2:
+      BlazePose Original: 3397 frames
+      GT Original: 3397 frames
+      Synced Frames: 1819 frames
+      BlazePose Shape: (1819, 33, 4)
+      GT Shape: (1819, 17, 3)
+
+    cam3:
+      BlazePose Original: 3397 frames
+      GT Original: 3397 frames
+      Synced Frames: 3304 frames
+      BlazePose Shape: (3304, 33, 4)
+      GT Shape: (3304, 17, 3)
+
+    cam4:
+      BlazePose Original: 3397 frames
+      GT Original: 3397 frames
+      Synced Frames: 3158 frames
+      BlazePose Shape: (3158, 33, 4)
+      GT Shape: (3158, 17, 3)
+
+    cam5:
+      BlazePose Original: 3397 frames
+      GT Original: 3397 frames
+      Synced Frames: 3396 frames
+      BlazePose Shape: (3396, 33, 4)
+      GT Shape: (3396, 17, 3)
+
+    cam6:
+      BlazePose Original: 3397 frames
+      GT Original: 3397 frames
+      Synced Frames: 2541 frames
+      BlazePose Shape: (2541, 33, 4)
+      GT Shape: (2541, 17, 3)
+
+    cam7:
+      BlazePose Original: 3397 frames
+      GT Original: 3397 frames
+      Synced Frames: 2543 frames
+      BlazePose Shape: (2543, 33, 4)
+      GT Shape: (2543, 17, 3)
+
+    cam8:
+      BlazePose Original: 3397 frames
+      GT Original: 3397 frames
+      Synced Frames: 3397 frames
+      BlazePose Shape: (3397, 33, 4)
+      GT Shape: (3397, 17, 3)
+
+S2 - acting1
+  GT Original Frames: 3387
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3386 frames
+      GT Original: 3387 frames
+      Synced Frames: 3386 frames
+      BlazePose Shape: (3386, 33, 4)
+      GT Shape: (3386, 17, 3)
+
+    cam2:
+      BlazePose Original: 3386 frames
+      GT Original: 3387 frames
+      Synced Frames: 2287 frames
+      BlazePose Shape: (2287, 33, 4)
+      GT Shape: (2287, 17, 3)
+
+    cam3:
+      BlazePose Original: 3386 frames
+      GT Original: 3387 frames
+      Synced Frames: 3208 frames
+      BlazePose Shape: (3208, 33, 4)
+      GT Shape: (3208, 17, 3)
+
+    cam4:
+      BlazePose Original: 3386 frames
+      GT Original: 3387 frames
+      Synced Frames: 3386 frames
+      BlazePose Shape: (3386, 33, 4)
+      GT Shape: (3386, 17, 3)
+
+    cam5:
+      BlazePose Original: 3386 frames
+      GT Original: 3387 frames
+      Synced Frames: 3385 frames
+      BlazePose Shape: (3385, 33, 4)
+      GT Shape: (3385, 17, 3)
+
+    cam6:
+      BlazePose Original: 2421 frames
+      GT Original: 3387 frames
+      Synced Frames: 2254 frames
+      BlazePose Shape: (2254, 33, 4)
+      GT Shape: (2254, 17, 3)
+
+    cam7:
+      BlazePose Original: 3386 frames
+      GT Original: 3387 frames
+      Synced Frames: 2692 frames
+      BlazePose Shape: (2692, 33, 4)
+      GT Shape: (2692, 17, 3)
+
+    cam8:
+      BlazePose Original: 3386 frames
+      GT Original: 3387 frames
+      Synced Frames: 3386 frames
+      BlazePose Shape: (3386, 33, 4)
+      GT Shape: (3386, 17, 3)
+
+S2 - acting2
+  GT Original Frames: 3808
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3807 frames
+      GT Original: 3808 frames
+      Synced Frames: 3807 frames
+      BlazePose Shape: (3807, 33, 4)
+      GT Shape: (3807, 17, 3)
+
+    cam2:
+      BlazePose Original: 3807 frames
+      GT Original: 3808 frames
+      Synced Frames: 1927 frames
+      BlazePose Shape: (1927, 33, 4)
+      GT Shape: (1927, 17, 3)
+
+    cam3:
+      BlazePose Original: 3807 frames
+      GT Original: 3808 frames
+      Synced Frames: 3594 frames
+      BlazePose Shape: (3594, 33, 4)
+      GT Shape: (3594, 17, 3)
+
+    cam4:
+      BlazePose Original: 3807 frames
+      GT Original: 3808 frames
+      Synced Frames: 3807 frames
+      BlazePose Shape: (3807, 33, 4)
+      GT Shape: (3807, 17, 3)
+
+    cam5:
+      BlazePose Original: 3807 frames
+      GT Original: 3808 frames
+      Synced Frames: 3806 frames
+      BlazePose Shape: (3806, 33, 4)
+      GT Shape: (3806, 17, 3)
+
+    cam6:
+      BlazePose Original: 3807 frames
+      GT Original: 3808 frames
+      Synced Frames: 3807 frames
+      BlazePose Shape: (3807, 33, 4)
+      GT Shape: (3807, 17, 3)
+
+    cam7:
+      BlazePose Original: 3807 frames
+      GT Original: 3808 frames
+      Synced Frames: 3210 frames
+      BlazePose Shape: (3210, 33, 4)
+      GT Shape: (3210, 17, 3)
+
+    cam8:
+      BlazePose Original: 3807 frames
+      GT Original: 3808 frames
+      Synced Frames: 3807 frames
+      BlazePose Shape: (3807, 33, 4)
+      GT Shape: (3807, 17, 3)
+
+S2 - acting3
+  GT Original Frames: 4828
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 4829 frames
+      GT Original: 4828 frames
+      Synced Frames: 4828 frames
+      BlazePose Shape: (4828, 33, 4)
+      GT Shape: (4828, 17, 3)
+
+    cam2:
+      BlazePose Original: 4829 frames
+      GT Original: 4828 frames
+      Synced Frames: 4463 frames
+      BlazePose Shape: (4463, 33, 4)
+      GT Shape: (4463, 17, 3)
+
+    cam3:
+      BlazePose Original: 4829 frames
+      GT Original: 4828 frames
+      Synced Frames: 4787 frames
+      BlazePose Shape: (4787, 33, 4)
+      GT Shape: (4787, 17, 3)
+
+    cam4:
+      BlazePose Original: 4829 frames
+      GT Original: 4828 frames
+      Synced Frames: 4828 frames
+      BlazePose Shape: (4828, 33, 4)
+      GT Shape: (4828, 17, 3)
+
+    cam5:
+      BlazePose Original: 4829 frames
+      GT Original: 4828 frames
+      Synced Frames: 4828 frames
+      BlazePose Shape: (4828, 33, 4)
+      GT Shape: (4828, 17, 3)
+
+    cam6:
+      BlazePose Original: 4829 frames
+      GT Original: 4828 frames
+      Synced Frames: 2138 frames
+      BlazePose Shape: (2138, 33, 4)
+      GT Shape: (2138, 17, 3)
+
+    cam7:
+      BlazePose Original: 4829 frames
+      GT Original: 4828 frames
+      Synced Frames: 4828 frames
+      BlazePose Shape: (4828, 33, 4)
+      GT Shape: (4828, 17, 3)
+
+    cam8:
+      BlazePose Original: 4829 frames
+      GT Original: 4828 frames
+      Synced Frames: 4828 frames
+      BlazePose Shape: (4828, 33, 4)
+      GT Shape: (4828, 17, 3)
+
+S2 - freestyle1
+  GT Original Frames: 2591
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 2592 frames
+      GT Original: 2591 frames
+      Synced Frames: 2591 frames
+      BlazePose Shape: (2591, 33, 4)
+      GT Shape: (2591, 17, 3)
+
+    cam2:
+      BlazePose Original: 2592 frames
+      GT Original: 2591 frames
+      Synced Frames: 2218 frames
+      BlazePose Shape: (2218, 33, 4)
+      GT Shape: (2218, 17, 3)
+
+    cam3:
+      BlazePose Original: 2592 frames
+      GT Original: 2591 frames
+      Synced Frames: 2582 frames
+      BlazePose Shape: (2582, 33, 4)
+      GT Shape: (2582, 17, 3)
+
+    cam4:
+      BlazePose Original: 2592 frames
+      GT Original: 2591 frames
+      Synced Frames: 2591 frames
+      BlazePose Shape: (2591, 33, 4)
+      GT Shape: (2591, 17, 3)
+
+    cam5:
+      BlazePose Original: 2592 frames
+      GT Original: 2591 frames
+      Synced Frames: 2591 frames
+      BlazePose Shape: (2591, 33, 4)
+      GT Shape: (2591, 17, 3)
+
+    cam6:
+      BlazePose Original: 2592 frames
+      GT Original: 2591 frames
+      Synced Frames: 2591 frames
+      BlazePose Shape: (2591, 33, 4)
+      GT Shape: (2591, 17, 3)
+
+    cam7:
+      BlazePose Original: 2592 frames
+      GT Original: 2591 frames
+      Synced Frames: 2591 frames
+      BlazePose Shape: (2591, 33, 4)
+      GT Shape: (2591, 17, 3)
+
+    cam8:
+      BlazePose Original: 2592 frames
+      GT Original: 2591 frames
+      Synced Frames: 2591 frames
+      BlazePose Shape: (2591, 33, 4)
+      GT Shape: (2591, 17, 3)
+
+S2 - freestyle2
+  GT Original Frames: 2092
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 2091 frames
+      GT Original: 2092 frames
+      Synced Frames: 2090 frames
+      BlazePose Shape: (2090, 33, 4)
+      GT Shape: (2090, 17, 3)
+
+    cam2:
+      BlazePose Original: 2091 frames
+      GT Original: 2092 frames
+      Synced Frames: 1077 frames
+      BlazePose Shape: (1077, 33, 4)
+      GT Shape: (1077, 17, 3)
+
+    cam3:
+      BlazePose Original: 2091 frames
+      GT Original: 2092 frames
+      Synced Frames: 2091 frames
+      BlazePose Shape: (2091, 33, 4)
+      GT Shape: (2091, 17, 3)
+
+    cam4:
+      BlazePose Original: 2091 frames
+      GT Original: 2092 frames
+      Synced Frames: 2091 frames
+      BlazePose Shape: (2091, 33, 4)
+      GT Shape: (2091, 17, 3)
+
+    cam5:
+      BlazePose Original: 2091 frames
+      GT Original: 2092 frames
+      Synced Frames: 2091 frames
+      BlazePose Shape: (2091, 33, 4)
+      GT Shape: (2091, 17, 3)
+
+    cam6:
+      BlazePose Original: 2091 frames
+      GT Original: 2092 frames
+      Synced Frames: 2091 frames
+      BlazePose Shape: (2091, 33, 4)
+      GT Shape: (2091, 17, 3)
+
+    cam7:
+      BlazePose Original: 2091 frames
+      GT Original: 2092 frames
+      Synced Frames: 2091 frames
+      BlazePose Shape: (2091, 33, 4)
+      GT Shape: (2091, 17, 3)
+
+    cam8:
+      BlazePose Original: 2091 frames
+      GT Original: 2092 frames
+      Synced Frames: 2091 frames
+      BlazePose Shape: (2091, 33, 4)
+      GT Shape: (2091, 17, 3)
+
+S2 - freestyle3
+  GT Original Frames: 3178
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3177 frames
+      GT Original: 3178 frames
+      Synced Frames: 3158 frames
+      BlazePose Shape: (3158, 33, 4)
+      GT Shape: (3158, 17, 3)
+
+    cam2:
+      BlazePose Original: 3177 frames
+      GT Original: 3178 frames
+      Synced Frames: 2361 frames
+      BlazePose Shape: (2361, 33, 4)
+      GT Shape: (2361, 17, 3)
+
+    cam3:
+      BlazePose Original: 3177 frames
+      GT Original: 3178 frames
+      Synced Frames: 3080 frames
+      BlazePose Shape: (3080, 33, 4)
+      GT Shape: (3080, 17, 3)
+
+    cam4:
+      BlazePose Original: 3177 frames
+      GT Original: 3178 frames
+      Synced Frames: 2506 frames
+      BlazePose Shape: (2506, 33, 4)
+      GT Shape: (2506, 17, 3)
+
+    cam5:
+      BlazePose Original: 3177 frames
+      GT Original: 3178 frames
+      Synced Frames: 3176 frames
+      BlazePose Shape: (3176, 33, 4)
+      GT Shape: (3176, 17, 3)
+
+    cam6:
+      BlazePose Original: 3177 frames
+      GT Original: 3178 frames
+      Synced Frames: 2981 frames
+      BlazePose Shape: (2981, 33, 4)
+      GT Shape: (2981, 17, 3)
+
+    cam7:
+      BlazePose Original: 3177 frames
+      GT Original: 3178 frames
+      Synced Frames: 3072 frames
+      BlazePose Shape: (3072, 33, 4)
+      GT Shape: (3072, 17, 3)
+
+    cam8:
+      BlazePose Original: 3177 frames
+      GT Original: 3178 frames
+      Synced Frames: 3117 frames
+      BlazePose Shape: (3117, 33, 4)
+      GT Shape: (3117, 17, 3)
+
+S2 - rom1
+  GT Original Frames: 6419
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 6420 frames
+      GT Original: 6419 frames
+      Synced Frames: 6419 frames
+      BlazePose Shape: (6419, 33, 4)
+      GT Shape: (6419, 17, 3)
+
+    cam2:
+      BlazePose Original: 6420 frames
+      GT Original: 6419 frames
+      Synced Frames: 3704 frames
+      BlazePose Shape: (3704, 33, 4)
+      GT Shape: (3704, 17, 3)
+
+    cam3:
+      BlazePose Original: 6420 frames
+      GT Original: 6419 frames
+      Synced Frames: 6419 frames
+      BlazePose Shape: (6419, 33, 4)
+      GT Shape: (6419, 17, 3)
+
+    cam4:
+      BlazePose Original: 6420 frames
+      GT Original: 6419 frames
+      Synced Frames: 6419 frames
+      BlazePose Shape: (6419, 33, 4)
+      GT Shape: (6419, 17, 3)
+
+    cam5:
+      BlazePose Original: 6420 frames
+      GT Original: 6419 frames
+      Synced Frames: 6418 frames
+      BlazePose Shape: (6418, 33, 4)
+      GT Shape: (6418, 17, 3)
+
+    cam6:
+      BlazePose Original: 6420 frames
+      GT Original: 6419 frames
+      Synced Frames: 6419 frames
+      BlazePose Shape: (6419, 33, 4)
+      GT Shape: (6419, 17, 3)
+
+    cam7:
+      BlazePose Original: 6420 frames
+      GT Original: 6419 frames
+      Synced Frames: 6419 frames
+      BlazePose Shape: (6419, 33, 4)
+      GT Shape: (6419, 17, 3)
+
+    cam8:
+      BlazePose Original: 6420 frames
+      GT Original: 6419 frames
+      Synced Frames: 6415 frames
+      BlazePose Shape: (6415, 33, 4)
+      GT Shape: (6415, 17, 3)
+
+S2 - rom2
+  GT Original Frames: 5939
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 5938 frames
+      GT Original: 5939 frames
+      Synced Frames: 5899 frames
+      BlazePose Shape: (5899, 33, 4)
+      GT Shape: (5899, 17, 3)
+
+    cam2:
+      BlazePose Original: 5938 frames
+      GT Original: 5939 frames
+      Synced Frames: 2969 frames
+      BlazePose Shape: (2969, 33, 4)
+      GT Shape: (2969, 17, 3)
+
+    cam3:
+      BlazePose Original: 5938 frames
+      GT Original: 5939 frames
+      Synced Frames: 5938 frames
+      BlazePose Shape: (5938, 33, 4)
+      GT Shape: (5938, 17, 3)
+
+    cam4:
+      BlazePose Original: 5938 frames
+      GT Original: 5939 frames
+      Synced Frames: 5938 frames
+      BlazePose Shape: (5938, 33, 4)
+      GT Shape: (5938, 17, 3)
+
+    cam5:
+      BlazePose Original: 5938 frames
+      GT Original: 5939 frames
+      Synced Frames: 5937 frames
+      BlazePose Shape: (5937, 33, 4)
+      GT Shape: (5937, 17, 3)
+
+    cam6:
+      BlazePose Original: 5938 frames
+      GT Original: 5939 frames
+      Synced Frames: 5938 frames
+      BlazePose Shape: (5938, 33, 4)
+      GT Shape: (5938, 17, 3)
+
+    cam7:
+      BlazePose Original: 5938 frames
+      GT Original: 5939 frames
+      Synced Frames: 5938 frames
+      BlazePose Shape: (5938, 33, 4)
+      GT Shape: (5938, 17, 3)
+
+    cam8:
+      BlazePose Original: 5938 frames
+      GT Original: 5939 frames
+      Synced Frames: 5938 frames
+      BlazePose Shape: (5938, 33, 4)
+      GT Shape: (5938, 17, 3)
+
+S2 - rom3
+  GT Original Frames: 5995
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 5994 frames
+      GT Original: 5995 frames
+      Synced Frames: 5950 frames
+      BlazePose Shape: (5950, 33, 4)
+      GT Shape: (5950, 17, 3)
+
+    cam2:
+      BlazePose Original: 5994 frames
+      GT Original: 5995 frames
+      Synced Frames: 3237 frames
+      BlazePose Shape: (3237, 33, 4)
+      GT Shape: (3237, 17, 3)
+
+    cam3:
+      BlazePose Original: 5994 frames
+      GT Original: 5995 frames
+      Synced Frames: 5994 frames
+      BlazePose Shape: (5994, 33, 4)
+      GT Shape: (5994, 17, 3)
+
+    cam4:
+      BlazePose Original: 5994 frames
+      GT Original: 5995 frames
+      Synced Frames: 5994 frames
+      BlazePose Shape: (5994, 33, 4)
+      GT Shape: (5994, 17, 3)
+
+    cam5:
+      BlazePose Original: 5994 frames
+      GT Original: 5995 frames
+      Synced Frames: 5993 frames
+      BlazePose Shape: (5993, 33, 4)
+      GT Shape: (5993, 17, 3)
+
+    cam6:
+      BlazePose Original: 5994 frames
+      GT Original: 5995 frames
+      Synced Frames: 5994 frames
+      BlazePose Shape: (5994, 33, 4)
+      GT Shape: (5994, 17, 3)
+
+    cam7:
+      BlazePose Original: 5994 frames
+      GT Original: 5995 frames
+      Synced Frames: 5994 frames
+      BlazePose Shape: (5994, 33, 4)
+      GT Shape: (5994, 17, 3)
+
+    cam8:
+      BlazePose Original: 5994 frames
+      GT Original: 5995 frames
+      Synced Frames: 5889 frames
+      BlazePose Shape: (5889, 33, 4)
+      GT Shape: (5889, 17, 3)
+
+S2 - walking1
+  GT Original Frames: 3518
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3518 frames
+      GT Original: 3518 frames
+      Synced Frames: 3518 frames
+      BlazePose Shape: (3518, 33, 4)
+      GT Shape: (3518, 17, 3)
+
+    cam2:
+      BlazePose Original: 3518 frames
+      GT Original: 3518 frames
+      Synced Frames: 2097 frames
+      BlazePose Shape: (2097, 33, 4)
+      GT Shape: (2097, 17, 3)
+
+    cam3:
+      BlazePose Original: 3518 frames
+      GT Original: 3518 frames
+      Synced Frames: 2760 frames
+      BlazePose Shape: (2760, 33, 4)
+      GT Shape: (2760, 17, 3)
+
+    cam4:
+      BlazePose Original: 3518 frames
+      GT Original: 3518 frames
+      Synced Frames: 3518 frames
+      BlazePose Shape: (3518, 33, 4)
+      GT Shape: (3518, 17, 3)
+
+    cam5:
+      BlazePose Original: 3518 frames
+      GT Original: 3518 frames
+      Synced Frames: 3517 frames
+      BlazePose Shape: (3517, 33, 4)
+      GT Shape: (3517, 17, 3)
+
+    cam6:
+      BlazePose Original: 3518 frames
+      GT Original: 3518 frames
+      Synced Frames: 3370 frames
+      BlazePose Shape: (3370, 33, 4)
+      GT Shape: (3370, 17, 3)
+
+    cam7:
+      BlazePose Original: 3518 frames
+      GT Original: 3518 frames
+      Synced Frames: 2979 frames
+      BlazePose Shape: (2979, 33, 4)
+      GT Shape: (2979, 17, 3)
+
+    cam8:
+      BlazePose Original: 3518 frames
+      GT Original: 3518 frames
+      Synced Frames: 3518 frames
+      BlazePose Shape: (3518, 33, 4)
+      GT Shape: (3518, 17, 3)
+
+S2 - walking2
+  GT Original Frames: 3575
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3576 frames
+      GT Original: 3575 frames
+      Synced Frames: 3575 frames
+      BlazePose Shape: (3575, 33, 4)
+      GT Shape: (3575, 17, 3)
+
+    cam2:
+      BlazePose Original: 3576 frames
+      GT Original: 3575 frames
+      Synced Frames: 2338 frames
+      BlazePose Shape: (2338, 33, 4)
+      GT Shape: (2338, 17, 3)
+
+    cam3:
+      BlazePose Original: 3576 frames
+      GT Original: 3575 frames
+      Synced Frames: 3203 frames
+      BlazePose Shape: (3203, 33, 4)
+      GT Shape: (3203, 17, 3)
+
+    cam4:
+      BlazePose Original: 3576 frames
+      GT Original: 3575 frames
+      Synced Frames: 3575 frames
+      BlazePose Shape: (3575, 33, 4)
+      GT Shape: (3575, 17, 3)
+
+    cam5:
+      BlazePose Original: 3576 frames
+      GT Original: 3575 frames
+      Synced Frames: 3574 frames
+      BlazePose Shape: (3574, 33, 4)
+      GT Shape: (3574, 17, 3)
+
+    cam6:
+      BlazePose Original: 3576 frames
+      GT Original: 3575 frames
+      Synced Frames: 3167 frames
+      BlazePose Shape: (3167, 33, 4)
+      GT Shape: (3167, 17, 3)
+
+    cam7:
+      BlazePose Original: 3576 frames
+      GT Original: 3575 frames
+      Synced Frames: 3182 frames
+      BlazePose Shape: (3182, 33, 4)
+      GT Shape: (3182, 17, 3)
+
+    cam8:
+      BlazePose Original: 3576 frames
+      GT Original: 3575 frames
+      Synced Frames: 3575 frames
+      BlazePose Shape: (3575, 33, 4)
+      GT Shape: (3575, 17, 3)
+
+S2 - walking3
+  GT Original Frames: 3553
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3552 frames
+      GT Original: 3553 frames
+      Synced Frames: 3552 frames
+      BlazePose Shape: (3552, 33, 4)
+      GT Shape: (3552, 17, 3)
+
+    cam2:
+      BlazePose Original: 3552 frames
+      GT Original: 3553 frames
+      Synced Frames: 2097 frames
+      BlazePose Shape: (2097, 33, 4)
+      GT Shape: (2097, 17, 3)
+
+    cam3:
+      BlazePose Original: 3552 frames
+      GT Original: 3553 frames
+      Synced Frames: 3171 frames
+      BlazePose Shape: (3171, 33, 4)
+      GT Shape: (3171, 17, 3)
+
+    cam4:
+      BlazePose Original: 3552 frames
+      GT Original: 3553 frames
+      Synced Frames: 3552 frames
+      BlazePose Shape: (3552, 33, 4)
+      GT Shape: (3552, 17, 3)
+
+    cam5:
+      BlazePose Original: 3552 frames
+      GT Original: 3553 frames
+      Synced Frames: 3551 frames
+      BlazePose Shape: (3551, 33, 4)
+      GT Shape: (3551, 17, 3)
+
+    cam6:
+      BlazePose Original: 3552 frames
+      GT Original: 3553 frames
+      Synced Frames: 3119 frames
+      BlazePose Shape: (3119, 33, 4)
+      GT Shape: (3119, 17, 3)
+
+    cam7:
+      BlazePose Original: 3552 frames
+      GT Original: 3553 frames
+      Synced Frames: 2845 frames
+      BlazePose Shape: (2845, 33, 4)
+      GT Shape: (2845, 17, 3)
+
+    cam8:
+      BlazePose Original: 3552 frames
+      GT Original: 3553 frames
+      Synced Frames: 3552 frames
+      BlazePose Shape: (3552, 33, 4)
+      GT Shape: (3552, 17, 3)
+
+S3 - acting1
+  GT Original Frames: 3624
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3624 frames
+      GT Original: 3624 frames
+      Synced Frames: 3624 frames
+      BlazePose Shape: (3624, 33, 4)
+      GT Shape: (3624, 17, 3)
+
+    cam2:
+      BlazePose Original: 3624 frames
+      GT Original: 3624 frames
+      Synced Frames: 1598 frames
+      BlazePose Shape: (1598, 33, 4)
+      GT Shape: (1598, 17, 3)
+
+    cam3:
+      BlazePose Original: 3624 frames
+      GT Original: 3624 frames
+      Synced Frames: 3388 frames
+      BlazePose Shape: (3388, 33, 4)
+      GT Shape: (3388, 17, 3)
+
+    cam4:
+      BlazePose Original: 3624 frames
+      GT Original: 3624 frames
+      Synced Frames: 3624 frames
+      BlazePose Shape: (3624, 33, 4)
+      GT Shape: (3624, 17, 3)
+
+    cam5:
+      BlazePose Original: 3624 frames
+      GT Original: 3624 frames
+      Synced Frames: 3623 frames
+      BlazePose Shape: (3623, 33, 4)
+      GT Shape: (3623, 17, 3)
+
+    cam6:
+      BlazePose Original: 3624 frames
+      GT Original: 3624 frames
+      Synced Frames: 3624 frames
+      BlazePose Shape: (3624, 33, 4)
+      GT Shape: (3624, 17, 3)
+
+    cam7:
+      BlazePose Original: 3624 frames
+      GT Original: 3624 frames
+      Synced Frames: 3200 frames
+      BlazePose Shape: (3200, 33, 4)
+      GT Shape: (3200, 17, 3)
+
+    cam8:
+      BlazePose Original: 3624 frames
+      GT Original: 3624 frames
+      Synced Frames: 3623 frames
+      BlazePose Shape: (3623, 33, 4)
+      GT Shape: (3623, 17, 3)
+
+S3 - acting2
+  GT Original Frames: 3712
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3712 frames
+      GT Original: 3712 frames
+      Synced Frames: 3369 frames
+      BlazePose Shape: (3369, 33, 4)
+      GT Shape: (3369, 17, 3)
+
+    cam2:
+      BlazePose Original: 3712 frames
+      GT Original: 3712 frames
+      Synced Frames: 3174 frames
+      BlazePose Shape: (3174, 33, 4)
+      GT Shape: (3174, 17, 3)
+
+    cam3:
+      BlazePose Original: 3712 frames
+      GT Original: 3712 frames
+      Synced Frames: 3608 frames
+      BlazePose Shape: (3608, 33, 4)
+      GT Shape: (3608, 17, 3)
+
+    cam4:
+      BlazePose Original: 3712 frames
+      GT Original: 3712 frames
+      Synced Frames: 3712 frames
+      BlazePose Shape: (3712, 33, 4)
+      GT Shape: (3712, 17, 3)
+
+    cam5:
+      BlazePose Original: 3712 frames
+      GT Original: 3712 frames
+      Synced Frames: 3711 frames
+      BlazePose Shape: (3711, 33, 4)
+      GT Shape: (3711, 17, 3)
+
+    cam6:
+      BlazePose Original: 3712 frames
+      GT Original: 3712 frames
+      Synced Frames: 2395 frames
+      BlazePose Shape: (2395, 33, 4)
+      GT Shape: (2395, 17, 3)
+
+    cam7:
+      BlazePose Original: 3712 frames
+      GT Original: 3712 frames
+      Synced Frames: 3627 frames
+      BlazePose Shape: (3627, 33, 4)
+      GT Shape: (3627, 17, 3)
+
+    cam8:
+      BlazePose Original: 3712 frames
+      GT Original: 3712 frames
+      Synced Frames: 3712 frames
+      BlazePose Shape: (3712, 33, 4)
+      GT Shape: (3712, 17, 3)
+
+S3 - acting3
+  GT Original Frames: 4293
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 4293 frames
+      GT Original: 4293 frames
+      Synced Frames: 4293 frames
+      BlazePose Shape: (4293, 33, 4)
+      GT Shape: (4293, 17, 3)
+
+    cam2:
+      BlazePose Original: 4293 frames
+      GT Original: 4293 frames
+      Synced Frames: 2086 frames
+      BlazePose Shape: (2086, 33, 4)
+      GT Shape: (2086, 17, 3)
+
+    cam3:
+      BlazePose Original: 4293 frames
+      GT Original: 4293 frames
+      Synced Frames: 4055 frames
+      BlazePose Shape: (4055, 33, 4)
+      GT Shape: (4055, 17, 3)
+
+    cam4:
+      BlazePose Original: 4293 frames
+      GT Original: 4293 frames
+      Synced Frames: 4293 frames
+      BlazePose Shape: (4293, 33, 4)
+      GT Shape: (4293, 17, 3)
+
+    cam5:
+      BlazePose Original: 4293 frames
+      GT Original: 4293 frames
+      Synced Frames: 4292 frames
+      BlazePose Shape: (4292, 33, 4)
+      GT Shape: (4292, 17, 3)
+
+    cam6:
+      BlazePose Original: 4293 frames
+      GT Original: 4293 frames
+      Synced Frames: 4188 frames
+      BlazePose Shape: (4188, 33, 4)
+      GT Shape: (4188, 17, 3)
+
+    cam7:
+      BlazePose Original: 4293 frames
+      GT Original: 4293 frames
+      Synced Frames: 4006 frames
+      BlazePose Shape: (4006, 33, 4)
+      GT Shape: (4006, 17, 3)
+
+    cam8:
+      BlazePose Original: 4293 frames
+      GT Original: 4293 frames
+      Synced Frames: 4293 frames
+      BlazePose Shape: (4293, 33, 4)
+      GT Shape: (4293, 17, 3)
+
+S3 - freestyle1
+  GT Original Frames: 3695
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3695 frames
+      GT Original: 3695 frames
+      Synced Frames: 3693 frames
+      BlazePose Shape: (3693, 33, 4)
+      GT Shape: (3693, 17, 3)
+
+    cam2:
+      BlazePose Original: 3695 frames
+      GT Original: 3695 frames
+      Synced Frames: 1685 frames
+      BlazePose Shape: (1685, 33, 4)
+      GT Shape: (1685, 17, 3)
+
+    cam3:
+      BlazePose Original: 3695 frames
+      GT Original: 3695 frames
+      Synced Frames: 3695 frames
+      BlazePose Shape: (3695, 33, 4)
+      GT Shape: (3695, 17, 3)
+
+    cam4:
+      BlazePose Original: 3695 frames
+      GT Original: 3695 frames
+      Synced Frames: 3501 frames
+      BlazePose Shape: (3501, 33, 4)
+      GT Shape: (3501, 17, 3)
+
+    cam5:
+      BlazePose Original: 3695 frames
+      GT Original: 3695 frames
+      Synced Frames: 3695 frames
+      BlazePose Shape: (3695, 33, 4)
+      GT Shape: (3695, 17, 3)
+
+    cam6:
+      BlazePose Original: 3695 frames
+      GT Original: 3695 frames
+      Synced Frames: 3695 frames
+      BlazePose Shape: (3695, 33, 4)
+      GT Shape: (3695, 17, 3)
+
+    cam7:
+      BlazePose Original: 3695 frames
+      GT Original: 3695 frames
+      Synced Frames: 3695 frames
+      BlazePose Shape: (3695, 33, 4)
+      GT Shape: (3695, 17, 3)
+
+    cam8:
+      BlazePose Original: 3695 frames
+      GT Original: 3695 frames
+      Synced Frames: 3624 frames
+      BlazePose Shape: (3624, 33, 4)
+      GT Shape: (3624, 17, 3)
+
+S3 - freestyle2
+  GT Original Frames: 3501
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3501 frames
+      GT Original: 3501 frames
+      Synced Frames: 3438 frames
+      BlazePose Shape: (3438, 33, 4)
+      GT Shape: (3438, 17, 3)
+
+    cam2:
+      BlazePose Original: 3501 frames
+      GT Original: 3501 frames
+      Synced Frames: 1389 frames
+      BlazePose Shape: (1389, 33, 4)
+      GT Shape: (1389, 17, 3)
+
+    cam3:
+      BlazePose Original: 3501 frames
+      GT Original: 3501 frames
+      Synced Frames: 3501 frames
+      BlazePose Shape: (3501, 33, 4)
+      GT Shape: (3501, 17, 3)
+
+    cam4:
+      BlazePose Original: 3501 frames
+      GT Original: 3501 frames
+      Synced Frames: 3457 frames
+      BlazePose Shape: (3457, 33, 4)
+      GT Shape: (3457, 17, 3)
+
+    cam5:
+      BlazePose Original: 3501 frames
+      GT Original: 3501 frames
+      Synced Frames: 3501 frames
+      BlazePose Shape: (3501, 33, 4)
+      GT Shape: (3501, 17, 3)
+
+    cam6:
+      BlazePose Original: 3501 frames
+      GT Original: 3501 frames
+      Synced Frames: 3501 frames
+      BlazePose Shape: (3501, 33, 4)
+      GT Shape: (3501, 17, 3)
+
+    cam7:
+      BlazePose Original: 3501 frames
+      GT Original: 3501 frames
+      Synced Frames: 3500 frames
+      BlazePose Shape: (3500, 33, 4)
+      GT Shape: (3500, 17, 3)
+
+    cam8:
+      BlazePose Original: 3501 frames
+      GT Original: 3501 frames
+      Synced Frames: 3247 frames
+      BlazePose Shape: (3247, 33, 4)
+      GT Shape: (3247, 17, 3)
+
+S3 - freestyle3
+  GT Original Frames: 3931
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3931 frames
+      GT Original: 3931 frames
+      Synced Frames: 3892 frames
+      BlazePose Shape: (3892, 33, 4)
+      GT Shape: (3892, 17, 3)
+
+    cam2:
+      BlazePose Original: 3931 frames
+      GT Original: 3931 frames
+      Synced Frames: 2108 frames
+      BlazePose Shape: (2108, 33, 4)
+      GT Shape: (2108, 17, 3)
+
+    cam3:
+      BlazePose Original: 3931 frames
+      GT Original: 3931 frames
+      Synced Frames: 3797 frames
+      BlazePose Shape: (3797, 33, 4)
+      GT Shape: (3797, 17, 3)
+
+    cam4:
+      BlazePose Original: 3931 frames
+      GT Original: 3931 frames
+      Synced Frames: 3927 frames
+      BlazePose Shape: (3927, 33, 4)
+      GT Shape: (3927, 17, 3)
+
+    cam5:
+      BlazePose Original: 3931 frames
+      GT Original: 3931 frames
+      Synced Frames: 3930 frames
+      BlazePose Shape: (3930, 33, 4)
+      GT Shape: (3930, 17, 3)
+
+    cam6:
+      BlazePose Original: 3931 frames
+      GT Original: 3931 frames
+      Synced Frames: 3802 frames
+      BlazePose Shape: (3802, 33, 4)
+      GT Shape: (3802, 17, 3)
+
+    cam7:
+      BlazePose Original: 3931 frames
+      GT Original: 3931 frames
+      Synced Frames: 3929 frames
+      BlazePose Shape: (3929, 33, 4)
+      GT Shape: (3929, 17, 3)
+
+    cam8:
+      BlazePose Original: 3931 frames
+      GT Original: 3931 frames
+      Synced Frames: 3931 frames
+      BlazePose Shape: (3931, 33, 4)
+      GT Shape: (3931, 17, 3)
+
+S3 - rom1
+  GT Original Frames: 5700
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 5700 frames
+      GT Original: 5700 frames
+      Synced Frames: 5700 frames
+      BlazePose Shape: (5700, 33, 4)
+      GT Shape: (5700, 17, 3)
+
+    cam2:
+      BlazePose Original: 5702 frames
+      GT Original: 5700 frames
+      Synced Frames: 2648 frames
+      BlazePose Shape: (2648, 33, 4)
+      GT Shape: (2648, 17, 3)
+
+    cam3:
+      BlazePose Original: 5702 frames
+      GT Original: 5700 frames
+      Synced Frames: 5700 frames
+      BlazePose Shape: (5700, 33, 4)
+      GT Shape: (5700, 17, 3)
+
+    cam4:
+      BlazePose Original: 5702 frames
+      GT Original: 5700 frames
+      Synced Frames: 5700 frames
+      BlazePose Shape: (5700, 33, 4)
+      GT Shape: (5700, 17, 3)
+
+    cam5:
+      BlazePose Original: 5702 frames
+      GT Original: 5700 frames
+      Synced Frames: 5700 frames
+      BlazePose Shape: (5700, 33, 4)
+      GT Shape: (5700, 17, 3)
+
+    cam6:
+      BlazePose Original: 5702 frames
+      GT Original: 5700 frames
+      Synced Frames: 5700 frames
+      BlazePose Shape: (5700, 33, 4)
+      GT Shape: (5700, 17, 3)
+
+    cam7:
+      BlazePose Original: 5702 frames
+      GT Original: 5700 frames
+      Synced Frames: 5700 frames
+      BlazePose Shape: (5700, 33, 4)
+      GT Shape: (5700, 17, 3)
+
+    cam8:
+      BlazePose Original: 5702 frames
+      GT Original: 5700 frames
+      Synced Frames: 5700 frames
+      BlazePose Shape: (5700, 33, 4)
+      GT Shape: (5700, 17, 3)
+
+S3 - rom2
+  GT Original Frames: 5319
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 5319 frames
+      GT Original: 5319 frames
+      Synced Frames: 5319 frames
+      BlazePose Shape: (5319, 33, 4)
+      GT Shape: (5319, 17, 3)
+
+    cam2:
+      BlazePose Original: 5319 frames
+      GT Original: 5319 frames
+      Synced Frames: 1409 frames
+      BlazePose Shape: (1409, 33, 4)
+      GT Shape: (1409, 17, 3)
+
+    cam3:
+      BlazePose Original: 5319 frames
+      GT Original: 5319 frames
+      Synced Frames: 5319 frames
+      BlazePose Shape: (5319, 33, 4)
+      GT Shape: (5319, 17, 3)
+
+    cam4:
+      BlazePose Original: 5319 frames
+      GT Original: 5319 frames
+      Synced Frames: 5319 frames
+      BlazePose Shape: (5319, 33, 4)
+      GT Shape: (5319, 17, 3)
+
+    cam5:
+      BlazePose Original: 5319 frames
+      GT Original: 5319 frames
+      Synced Frames: 5318 frames
+      BlazePose Shape: (5318, 33, 4)
+      GT Shape: (5318, 17, 3)
+
+    cam6:
+      BlazePose Original: 5319 frames
+      GT Original: 5319 frames
+      Synced Frames: 5319 frames
+      BlazePose Shape: (5319, 33, 4)
+      GT Shape: (5319, 17, 3)
+
+    cam7:
+      BlazePose Original: 5319 frames
+      GT Original: 5319 frames
+      Synced Frames: 5312 frames
+      BlazePose Shape: (5312, 33, 4)
+      GT Shape: (5312, 17, 3)
+
+    cam8:
+      BlazePose Original: 5319 frames
+      GT Original: 5319 frames
+      Synced Frames: 5319 frames
+      BlazePose Shape: (5319, 33, 4)
+      GT Shape: (5319, 17, 3)
+
+S3 - rom3
+  GT Original Frames: 4858
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 4859 frames
+      GT Original: 4858 frames
+      Synced Frames: 4858 frames
+      BlazePose Shape: (4858, 33, 4)
+      GT Shape: (4858, 17, 3)
+
+    cam2:
+      BlazePose Original: 4859 frames
+      GT Original: 4858 frames
+      Synced Frames: 2591 frames
+      BlazePose Shape: (2591, 33, 4)
+      GT Shape: (2591, 17, 3)
+
+    cam3:
+      BlazePose Original: 4859 frames
+      GT Original: 4858 frames
+      Synced Frames: 4858 frames
+      BlazePose Shape: (4858, 33, 4)
+      GT Shape: (4858, 17, 3)
+
+    cam4:
+      BlazePose Original: 4859 frames
+      GT Original: 4858 frames
+      Synced Frames: 4858 frames
+      BlazePose Shape: (4858, 33, 4)
+      GT Shape: (4858, 17, 3)
+
+    cam5:
+      BlazePose Original: 4859 frames
+      GT Original: 4858 frames
+      Synced Frames: 4858 frames
+      BlazePose Shape: (4858, 33, 4)
+      GT Shape: (4858, 17, 3)
+
+    cam6:
+      BlazePose Original: 4859 frames
+      GT Original: 4858 frames
+      Synced Frames: 4858 frames
+      BlazePose Shape: (4858, 33, 4)
+      GT Shape: (4858, 17, 3)
+
+    cam7:
+      BlazePose Original: 4859 frames
+      GT Original: 4858 frames
+      Synced Frames: 4858 frames
+      BlazePose Shape: (4858, 33, 4)
+      GT Shape: (4858, 17, 3)
+
+    cam8:
+      BlazePose Original: 4859 frames
+      GT Original: 4858 frames
+      Synced Frames: 4858 frames
+      BlazePose Shape: (4858, 33, 4)
+      GT Shape: (4858, 17, 3)
+
+S3 - walking1
+  GT Original Frames: 3538
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3538 frames
+      GT Original: 3538 frames
+      Synced Frames: 3538 frames
+      BlazePose Shape: (3538, 33, 4)
+      GT Shape: (3538, 17, 3)
+
+    cam2:
+      BlazePose Original: 3538 frames
+      GT Original: 3538 frames
+      Synced Frames: 2110 frames
+      BlazePose Shape: (2110, 33, 4)
+      GT Shape: (2110, 17, 3)
+
+    cam3:
+      BlazePose Original: 3538 frames
+      GT Original: 3538 frames
+      Synced Frames: 2822 frames
+      BlazePose Shape: (2822, 33, 4)
+      GT Shape: (2822, 17, 3)
+
+    cam4:
+      BlazePose Original: 3538 frames
+      GT Original: 3538 frames
+      Synced Frames: 3538 frames
+      BlazePose Shape: (3538, 33, 4)
+      GT Shape: (3538, 17, 3)
+
+    cam5:
+      BlazePose Original: 3538 frames
+      GT Original: 3538 frames
+      Synced Frames: 3537 frames
+      BlazePose Shape: (3537, 33, 4)
+      GT Shape: (3537, 17, 3)
+
+    cam6:
+      BlazePose Original: 3538 frames
+      GT Original: 3538 frames
+      Synced Frames: 2951 frames
+      BlazePose Shape: (2951, 33, 4)
+      GT Shape: (2951, 17, 3)
+
+    cam7:
+      BlazePose Original: 3538 frames
+      GT Original: 3538 frames
+      Synced Frames: 2811 frames
+      BlazePose Shape: (2811, 33, 4)
+      GT Shape: (2811, 17, 3)
+
+    cam8:
+      BlazePose Original: 3538 frames
+      GT Original: 3538 frames
+      Synced Frames: 3538 frames
+      BlazePose Shape: (3538, 33, 4)
+      GT Shape: (3538, 17, 3)
+
+S3 - walking2
+  GT Original Frames: 3239
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3239 frames
+      GT Original: 3239 frames
+      Synced Frames: 3154 frames
+      BlazePose Shape: (3154, 33, 4)
+      GT Shape: (3154, 17, 3)
+
+    cam2:
+      BlazePose Original: 3239 frames
+      GT Original: 3239 frames
+      Synced Frames: 1725 frames
+      BlazePose Shape: (1725, 33, 4)
+      GT Shape: (1725, 17, 3)
+
+    cam3:
+      BlazePose Original: 3239 frames
+      GT Original: 3239 frames
+      Synced Frames: 2408 frames
+      BlazePose Shape: (2408, 33, 4)
+      GT Shape: (2408, 17, 3)
+
+    cam4:
+      BlazePose Original: 3239 frames
+      GT Original: 3239 frames
+      Synced Frames: 3239 frames
+      BlazePose Shape: (3239, 33, 4)
+      GT Shape: (3239, 17, 3)
+
+    cam5:
+      BlazePose Original: 3239 frames
+      GT Original: 3239 frames
+      Synced Frames: 3238 frames
+      BlazePose Shape: (3238, 33, 4)
+      GT Shape: (3238, 17, 3)
+
+    cam6:
+      BlazePose Original: 3239 frames
+      GT Original: 3239 frames
+      Synced Frames: 2769 frames
+      BlazePose Shape: (2769, 33, 4)
+      GT Shape: (2769, 17, 3)
+
+    cam7:
+      BlazePose Original: 3239 frames
+      GT Original: 3239 frames
+      Synced Frames: 2567 frames
+      BlazePose Shape: (2567, 33, 4)
+      GT Shape: (2567, 17, 3)
+
+    cam8:
+      BlazePose Original: 3239 frames
+      GT Original: 3239 frames
+      Synced Frames: 3238 frames
+      BlazePose Shape: (3238, 33, 4)
+      GT Shape: (3238, 17, 3)
+
+S3 - walking3
+  GT Original Frames: 3388
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3388 frames
+      GT Original: 3388 frames
+      Synced Frames: 3388 frames
+      BlazePose Shape: (3388, 33, 4)
+      GT Shape: (3388, 17, 3)
+
+    cam2:
+      BlazePose Original: 3388 frames
+      GT Original: 3388 frames
+      Synced Frames: 1828 frames
+      BlazePose Shape: (1828, 33, 4)
+      GT Shape: (1828, 17, 3)
+
+    cam3:
+      BlazePose Original: 3388 frames
+      GT Original: 3388 frames
+      Synced Frames: 2746 frames
+      BlazePose Shape: (2746, 33, 4)
+      GT Shape: (2746, 17, 3)
+
+    cam4:
+      BlazePose Original: 3388 frames
+      GT Original: 3388 frames
+      Synced Frames: 3340 frames
+      BlazePose Shape: (3340, 33, 4)
+      GT Shape: (3340, 17, 3)
+
+    cam5:
+      BlazePose Original: 3388 frames
+      GT Original: 3388 frames
+      Synced Frames: 3387 frames
+      BlazePose Shape: (3387, 33, 4)
+      GT Shape: (3387, 17, 3)
+
+    cam6:
+      BlazePose Original: 3388 frames
+      GT Original: 3388 frames
+      Synced Frames: 2894 frames
+      BlazePose Shape: (2894, 33, 4)
+      GT Shape: (2894, 17, 3)
+
+    cam7:
+      BlazePose Original: 3388 frames
+      GT Original: 3388 frames
+      Synced Frames: 2440 frames
+      BlazePose Shape: (2440, 33, 4)
+      GT Shape: (2440, 17, 3)
+
+    cam8:
+      BlazePose Original: 3388 frames
+      GT Original: 3388 frames
+      Synced Frames: 3388 frames
+      BlazePose Shape: (3388, 33, 4)
+      GT Shape: (3388, 17, 3)
+
+S4 - acting3
+  GT Original Frames: 3577
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3575 frames
+      GT Original: 3577 frames
+      Synced Frames: 3575 frames
+      BlazePose Shape: (3575, 33, 4)
+      GT Shape: (3575, 17, 3)
+
+    cam2:
+      BlazePose Original: 3575 frames
+      GT Original: 3577 frames
+      Synced Frames: 1831 frames
+      BlazePose Shape: (1831, 33, 4)
+      GT Shape: (1831, 17, 3)
+
+    cam3:
+      BlazePose Original: 3575 frames
+      GT Original: 3577 frames
+      Synced Frames: 2848 frames
+      BlazePose Shape: (2848, 33, 4)
+      GT Shape: (2848, 17, 3)
+
+    cam4:
+      BlazePose Original: 3575 frames
+      GT Original: 3577 frames
+      Synced Frames: 3575 frames
+      BlazePose Shape: (3575, 33, 4)
+      GT Shape: (3575, 17, 3)
+
+    cam5:
+      BlazePose Original: 3575 frames
+      GT Original: 3577 frames
+      Synced Frames: 3574 frames
+      BlazePose Shape: (3574, 33, 4)
+      GT Shape: (3574, 17, 3)
+
+    cam6:
+      BlazePose Original: 3575 frames
+      GT Original: 3577 frames
+      Synced Frames: 3469 frames
+      BlazePose Shape: (3469, 33, 4)
+      GT Shape: (3469, 17, 3)
+
+    cam7:
+      BlazePose Original: 3575 frames
+      GT Original: 3577 frames
+      Synced Frames: 3575 frames
+      BlazePose Shape: (3575, 33, 4)
+      GT Shape: (3575, 17, 3)
+
+    cam8:
+      BlazePose Original: 3575 frames
+      GT Original: 3577 frames
+      Synced Frames: 3575 frames
+      BlazePose Shape: (3575, 33, 4)
+      GT Shape: (3575, 17, 3)
+
+S4 - freestyle1
+  GT Original Frames: 2020
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 2021 frames
+      GT Original: 2020 frames
+      Synced Frames: 1963 frames
+      BlazePose Shape: (1963, 33, 4)
+      GT Shape: (1963, 17, 3)
+
+    cam2:
+      BlazePose Original: 2021 frames
+      GT Original: 2020 frames
+      Synced Frames: 1070 frames
+      BlazePose Shape: (1070, 33, 4)
+      GT Shape: (1070, 17, 3)
+
+    cam3:
+      BlazePose Original: 2021 frames
+      GT Original: 2020 frames
+      Synced Frames: 1600 frames
+      BlazePose Shape: (1600, 33, 4)
+      GT Shape: (1600, 17, 3)
+
+    cam4:
+      BlazePose Original: 2021 frames
+      GT Original: 2020 frames
+      Synced Frames: 2020 frames
+      BlazePose Shape: (2020, 33, 4)
+      GT Shape: (2020, 17, 3)
+
+    cam5:
+      BlazePose Original: 2021 frames
+      GT Original: 2020 frames
+      Synced Frames: 2020 frames
+      BlazePose Shape: (2020, 33, 4)
+      GT Shape: (2020, 17, 3)
+
+    cam6:
+      BlazePose Original: 2021 frames
+      GT Original: 2020 frames
+      Synced Frames: 1791 frames
+      BlazePose Shape: (1791, 33, 4)
+      GT Shape: (1791, 17, 3)
+
+    cam7:
+      BlazePose Original: 2021 frames
+      GT Original: 2020 frames
+      Synced Frames: 2020 frames
+      BlazePose Shape: (2020, 33, 4)
+      GT Shape: (2020, 17, 3)
+
+    cam8:
+      BlazePose Original: 2021 frames
+      GT Original: 2020 frames
+      Synced Frames: 2020 frames
+      BlazePose Shape: (2020, 33, 4)
+      GT Shape: (2020, 17, 3)
+
+S4 - freestyle3
+  GT Original Frames: 2826
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 2826 frames
+      GT Original: 2826 frames
+      Synced Frames: 2524 frames
+      BlazePose Shape: (2524, 33, 4)
+      GT Shape: (2524, 17, 3)
+
+    cam2:
+      BlazePose Original: 2826 frames
+      GT Original: 2826 frames
+      Synced Frames: 2213 frames
+      BlazePose Shape: (2213, 33, 4)
+      GT Shape: (2213, 17, 3)
+
+    cam3:
+      BlazePose Original: 2826 frames
+      GT Original: 2826 frames
+      Synced Frames: 2018 frames
+      BlazePose Shape: (2018, 33, 4)
+      GT Shape: (2018, 17, 3)
+
+    cam4:
+      BlazePose Original: 2826 frames
+      GT Original: 2826 frames
+      Synced Frames: 2821 frames
+      BlazePose Shape: (2821, 33, 4)
+      GT Shape: (2821, 17, 3)
+
+    cam5:
+      BlazePose Original: 2826 frames
+      GT Original: 2826 frames
+      Synced Frames: 2825 frames
+      BlazePose Shape: (2825, 33, 4)
+      GT Shape: (2825, 17, 3)
+
+    cam6:
+      BlazePose Original: 2826 frames
+      GT Original: 2826 frames
+      Synced Frames: 1858 frames
+      BlazePose Shape: (1858, 33, 4)
+      GT Shape: (1858, 17, 3)
+
+    cam7:
+      BlazePose Original: 2826 frames
+      GT Original: 2826 frames
+      Synced Frames: 2628 frames
+      BlazePose Shape: (2628, 33, 4)
+      GT Shape: (2628, 17, 3)
+
+    cam8:
+      BlazePose Original: 2826 frames
+      GT Original: 2826 frames
+      Synced Frames: 2825 frames
+      BlazePose Shape: (2825, 33, 4)
+      GT Shape: (2825, 17, 3)
+
+S4 - rom3
+  GT Original Frames: 5430
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 5430 frames
+      GT Original: 5430 frames
+      Synced Frames: 5430 frames
+      BlazePose Shape: (5430, 33, 4)
+      GT Shape: (5430, 17, 3)
+
+    cam2:
+      BlazePose Original: 5430 frames
+      GT Original: 5430 frames
+      Synced Frames: 2696 frames
+      BlazePose Shape: (2696, 33, 4)
+      GT Shape: (2696, 17, 3)
+
+    cam3:
+      BlazePose Original: 5430 frames
+      GT Original: 5430 frames
+      Synced Frames: 5430 frames
+      BlazePose Shape: (5430, 33, 4)
+      GT Shape: (5430, 17, 3)
+
+    cam4:
+      BlazePose Original: 5430 frames
+      GT Original: 5430 frames
+      Synced Frames: 5430 frames
+      BlazePose Shape: (5430, 33, 4)
+      GT Shape: (5430, 17, 3)
+
+    cam5:
+      BlazePose Original: 5430 frames
+      GT Original: 5430 frames
+      Synced Frames: 5430 frames
+      BlazePose Shape: (5430, 33, 4)
+      GT Shape: (5430, 17, 3)
+
+    cam6:
+      BlazePose Original: 5430 frames
+      GT Original: 5430 frames
+      Synced Frames: 5430 frames
+      BlazePose Shape: (5430, 33, 4)
+      GT Shape: (5430, 17, 3)
+
+    cam7:
+      BlazePose Original: 5430 frames
+      GT Original: 5430 frames
+      Synced Frames: 5430 frames
+      BlazePose Shape: (5430, 33, 4)
+      GT Shape: (5430, 17, 3)
+
+    cam8:
+      BlazePose Original: 5430 frames
+      GT Original: 5430 frames
+      Synced Frames: 5430 frames
+      BlazePose Shape: (5430, 33, 4)
+      GT Shape: (5430, 17, 3)
+
+S4 - walking2
+  GT Original Frames: 3376
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3377 frames
+      GT Original: 3376 frames
+      Synced Frames: 3376 frames
+      BlazePose Shape: (3376, 33, 4)
+      GT Shape: (3376, 17, 3)
+
+    cam2:
+      BlazePose Original: 3377 frames
+      GT Original: 3376 frames
+      Synced Frames: 1941 frames
+      BlazePose Shape: (1941, 33, 4)
+      GT Shape: (1941, 17, 3)
+
+    cam3:
+      BlazePose Original: 3377 frames
+      GT Original: 3376 frames
+      Synced Frames: 2694 frames
+      BlazePose Shape: (2694, 33, 4)
+      GT Shape: (2694, 17, 3)
+
+    cam4:
+      BlazePose Original: 3377 frames
+      GT Original: 3376 frames
+      Synced Frames: 3376 frames
+      BlazePose Shape: (3376, 33, 4)
+      GT Shape: (3376, 17, 3)
+
+    cam5:
+      BlazePose Original: 3377 frames
+      GT Original: 3376 frames
+      Synced Frames: 3375 frames
+      BlazePose Shape: (3375, 33, 4)
+      GT Shape: (3375, 17, 3)
+
+    cam6:
+      BlazePose Original: 3377 frames
+      GT Original: 3376 frames
+      Synced Frames: 2932 frames
+      BlazePose Shape: (2932, 33, 4)
+      GT Shape: (2932, 17, 3)
+
+    cam7:
+      BlazePose Original: 3377 frames
+      GT Original: 3376 frames
+      Synced Frames: 2824 frames
+      BlazePose Shape: (2824, 33, 4)
+      GT Shape: (2824, 17, 3)
+
+    cam8:
+      BlazePose Original: 3377 frames
+      GT Original: 3376 frames
+      Synced Frames: 3376 frames
+      BlazePose Shape: (3376, 33, 4)
+      GT Shape: (3376, 17, 3)
+
+S5 - acting3
+  GT Original Frames: 3006
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3006 frames
+      GT Original: 3006 frames
+      Synced Frames: 3006 frames
+      BlazePose Shape: (3006, 33, 4)
+      GT Shape: (3006, 17, 3)
+
+    cam2:
+      BlazePose Original: 3006 frames
+      GT Original: 3006 frames
+      Synced Frames: 2405 frames
+      BlazePose Shape: (2405, 33, 4)
+      GT Shape: (2405, 17, 3)
+
+    cam3:
+      BlazePose Original: 3006 frames
+      GT Original: 3006 frames
+      Synced Frames: 2691 frames
+      BlazePose Shape: (2691, 33, 4)
+      GT Shape: (2691, 17, 3)
+
+    cam4:
+      BlazePose Original: 3006 frames
+      GT Original: 3006 frames
+      Synced Frames: 3006 frames
+      BlazePose Shape: (3006, 33, 4)
+      GT Shape: (3006, 17, 3)
+
+    cam5:
+      BlazePose Original: 3006 frames
+      GT Original: 3006 frames
+      Synced Frames: 3005 frames
+      BlazePose Shape: (3005, 33, 4)
+      GT Shape: (3005, 17, 3)
+
+    cam6:
+      BlazePose Original: 3006 frames
+      GT Original: 3006 frames
+      Synced Frames: 3006 frames
+      BlazePose Shape: (3006, 33, 4)
+      GT Shape: (3006, 17, 3)
+
+    cam7:
+      BlazePose Original: 3006 frames
+      GT Original: 3006 frames
+      Synced Frames: 2756 frames
+      BlazePose Shape: (2756, 33, 4)
+      GT Shape: (2756, 17, 3)
+
+    cam8:
+      BlazePose Original: 3006 frames
+      GT Original: 3006 frames
+      Synced Frames: 3006 frames
+      BlazePose Shape: (3006, 33, 4)
+      GT Shape: (3006, 17, 3)
+
+S5 - freestyle1
+  GT Original Frames: 3073
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3073 frames
+      GT Original: 3073 frames
+      Synced Frames: 3073 frames
+      BlazePose Shape: (3073, 33, 4)
+      GT Shape: (3073, 17, 3)
+
+    cam2:
+      BlazePose Original: 3073 frames
+      GT Original: 3073 frames
+      Synced Frames: 1664 frames
+      BlazePose Shape: (1664, 33, 4)
+      GT Shape: (1664, 17, 3)
+
+    cam3:
+      BlazePose Original: 3073 frames
+      GT Original: 3073 frames
+      Synced Frames: 3073 frames
+      BlazePose Shape: (3073, 33, 4)
+      GT Shape: (3073, 17, 3)
+
+    cam4:
+      BlazePose Original: 3073 frames
+      GT Original: 3073 frames
+      Synced Frames: 3073 frames
+      BlazePose Shape: (3073, 33, 4)
+      GT Shape: (3073, 17, 3)
+
+    cam5:
+      BlazePose Original: 3073 frames
+      GT Original: 3073 frames
+      Synced Frames: 3072 frames
+      BlazePose Shape: (3072, 33, 4)
+      GT Shape: (3072, 17, 3)
+
+    cam6:
+      BlazePose Original: 3073 frames
+      GT Original: 3073 frames
+      Synced Frames: 3009 frames
+      BlazePose Shape: (3009, 33, 4)
+      GT Shape: (3009, 17, 3)
+
+    cam7:
+      BlazePose Original: 3073 frames
+      GT Original: 3073 frames
+      Synced Frames: 2797 frames
+      BlazePose Shape: (2797, 33, 4)
+      GT Shape: (2797, 17, 3)
+
+    cam8:
+      BlazePose Original: 3073 frames
+      GT Original: 3073 frames
+      Synced Frames: 3073 frames
+      BlazePose Shape: (3073, 33, 4)
+      GT Shape: (3073, 17, 3)
+
+S5 - freestyle3
+  GT Original Frames: 3561
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3562 frames
+      GT Original: 3561 frames
+      Synced Frames: 3532 frames
+      BlazePose Shape: (3532, 33, 4)
+      GT Shape: (3532, 17, 3)
+
+    cam2:
+      BlazePose Original: 3562 frames
+      GT Original: 3561 frames
+      Synced Frames: 1610 frames
+      BlazePose Shape: (1610, 33, 4)
+      GT Shape: (1610, 17, 3)
+
+    cam3:
+      BlazePose Original: 3562 frames
+      GT Original: 3561 frames
+      Synced Frames: 3137 frames
+      BlazePose Shape: (3137, 33, 4)
+      GT Shape: (3137, 17, 3)
+
+    cam4:
+      BlazePose Original: 3562 frames
+      GT Original: 3561 frames
+      Synced Frames: 3560 frames
+      BlazePose Shape: (3560, 33, 4)
+      GT Shape: (3560, 17, 3)
+
+    cam5:
+      BlazePose Original: 3562 frames
+      GT Original: 3561 frames
+      Synced Frames: 3560 frames
+      BlazePose Shape: (3560, 33, 4)
+      GT Shape: (3560, 17, 3)
+
+    cam6:
+      BlazePose Original: 3562 frames
+      GT Original: 3561 frames
+      Synced Frames: 3561 frames
+      BlazePose Shape: (3561, 33, 4)
+      GT Shape: (3561, 17, 3)
+
+    cam7:
+      BlazePose Original: 3562 frames
+      GT Original: 3561 frames
+      Synced Frames: 3465 frames
+      BlazePose Shape: (3465, 33, 4)
+      GT Shape: (3465, 17, 3)
+
+    cam8:
+      BlazePose Original: 3562 frames
+      GT Original: 3561 frames
+      Synced Frames: 3561 frames
+      BlazePose Shape: (3561, 33, 4)
+      GT Shape: (3561, 17, 3)
+
+S5 - rom3
+  GT Original Frames: 5758
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 5757 frames
+      GT Original: 5758 frames
+      Synced Frames: 5757 frames
+      BlazePose Shape: (5757, 33, 4)
+      GT Shape: (5757, 17, 3)
+
+    cam2:
+      BlazePose Original: 5757 frames
+      GT Original: 5758 frames
+      Synced Frames: 2850 frames
+      BlazePose Shape: (2850, 33, 4)
+      GT Shape: (2850, 17, 3)
+
+    cam3:
+      BlazePose Original: 5757 frames
+      GT Original: 5758 frames
+      Synced Frames: 5757 frames
+      BlazePose Shape: (5757, 33, 4)
+      GT Shape: (5757, 17, 3)
+
+    cam4:
+      BlazePose Original: 5757 frames
+      GT Original: 5758 frames
+      Synced Frames: 5757 frames
+      BlazePose Shape: (5757, 33, 4)
+      GT Shape: (5757, 17, 3)
+
+    cam5:
+      BlazePose Original: 5757 frames
+      GT Original: 5758 frames
+      Synced Frames: 5757 frames
+      BlazePose Shape: (5757, 33, 4)
+      GT Shape: (5757, 17, 3)
+
+    cam6:
+      BlazePose Original: 5757 frames
+      GT Original: 5758 frames
+      Synced Frames: 5757 frames
+      BlazePose Shape: (5757, 33, 4)
+      GT Shape: (5757, 17, 3)
+
+    cam7:
+      BlazePose Original: 5757 frames
+      GT Original: 5758 frames
+      Synced Frames: 5752 frames
+      BlazePose Shape: (5752, 33, 4)
+      GT Shape: (5752, 17, 3)
+
+    cam8:
+      BlazePose Original: 5757 frames
+      GT Original: 5758 frames
+      Synced Frames: 5757 frames
+      BlazePose Shape: (5757, 33, 4)
+      GT Shape: (5757, 17, 3)
+
+S5 - walking2
+  GT Original Frames: 3738
+  Cameras Processed: 8
+
+    cam1:
+      BlazePose Original: 3737 frames
+      GT Original: 3738 frames
+      Synced Frames: 3648 frames
+      BlazePose Shape: (3648, 33, 4)
+      GT Shape: (3648, 17, 3)
+
+    cam2:
+      BlazePose Original: 3737 frames
+      GT Original: 3738 frames
+      Synced Frames: 1892 frames
+      BlazePose Shape: (1892, 33, 4)
+      GT Shape: (1892, 17, 3)
+
+    cam3:
+      BlazePose Original: 3737 frames
+      GT Original: 3738 frames
+      Synced Frames: 2991 frames
+      BlazePose Shape: (2991, 33, 4)
+      GT Shape: (2991, 17, 3)
+
+    cam4:
+      BlazePose Original: 3737 frames
+      GT Original: 3738 frames
+      Synced Frames: 3646 frames
+      BlazePose Shape: (3646, 33, 4)
+      GT Shape: (3646, 17, 3)
+
+    cam5:
+      BlazePose Original: 3737 frames
+      GT Original: 3738 frames
+      Synced Frames: 3736 frames
+      BlazePose Shape: (3736, 33, 4)
+      GT Shape: (3736, 17, 3)
+
+    cam6:
+      BlazePose Original: 3737 frames
+      GT Original: 3738 frames
+      Synced Frames: 3303 frames
+      BlazePose Shape: (3303, 33, 4)
+      GT Shape: (3303, 17, 3)
+
+    cam7:
+      BlazePose Original: 3737 frames
+      GT Original: 3738 frames
+      Synced Frames: 3034 frames
+      BlazePose Shape: (3034, 33, 4)
+      GT Shape: (3034, 17, 3)
+
+    cam8:
+      BlazePose Original: 3737 frames
+      GT Original: 3738 frames
+      Synced Frames: 3737 frames
+      BlazePose Shape: (3737, 33, 4)
+      GT Shape: (3737, 17, 3)
