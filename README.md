@@ -47,16 +47,28 @@ pip install torch torchvision torchaudio mediapipe==0.10.14 numpy tqdm
 
 ### Dataset Setup
 
-The dataset should be organized as follows:
+**Download from Hugging Face:**
+
+The dataset (6.89GB) is hosted on Hugging Face for easier access:
+
+```bash
+# Install huggingface-hub
+pip install huggingface-hub
+
+# Download the dataset
+huggingface-cli download Blazewild/Totalcap-blazepose --repo-type dataset --local-dir blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset
+```
+
+**Expected structure:**
 
 ```
 blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/
-├── blaze_augmented/     # Input: BlazePose keypoints
-├── gt_augmented/        # Output: Ground truth motion
+├── blaze_augmented/     # Input: BlazePose keypoints (5,164 samples)
+├── gt_augmented/        # Output: Ground truth motion (5,164 samples)
 └── dataset_map.json     # Train/test split mapping
 ```
 
-Generate the dataset mapping:
+**Generate dataset mapping** (if not included in download):
 
 ```bash
 python blaze2cap/data/generate_json.py
