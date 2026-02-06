@@ -31,7 +31,7 @@ class MotionEvaluator:
             pred_rot: [Batch, Seq, 22, 6] (6D format)
             gt_rot: [Batch, Seq, 22, 6] (6D format)
         Returns:
-            dict: {"MPJPE": float, "MARE": float}
+            dict: {"MPJPE": float (in mm), "MARE": float}
         """
         # 1. Rotation Error (MARE) - calculated on 6D directly or Matrices
         # We approximate it here using MSE of the 6D vector for speed, 
@@ -43,12 +43,14 @@ class MotionEvaluator:
         pred_pos = self._forward_kinematics(pred_rot)
         gt_pos = self._forward_kinematics(gt_rot)
         
-        # Euclidean distance per joint
+        # Euclidean distance per joint (in meters since offsets are in meters)
         diff = pred_pos - gt_pos # [B, S, 22, 3]
         dist = torch.norm(diff, dim=-1) # [B, S, 22]
-        mpjpe = torch.mean(dist).item()
+        
+        # Convert to millimeters for standard MPJPE reporting
+        mpjpe_mm = torch.mean(dist).item() * 1000.0
 
-        return {"MPJPE": mpjpe, "MARE": mare}
+        return {"MPJPE": mpjpe_mm, "MARE": mare}
 
     def _forward_kinematics(self, rot_6d):
         """

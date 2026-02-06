@@ -78,10 +78,8 @@ class MotionCorrectionLoss(LossBase):
             
             # Expand mask for dimensions: [B, S, 1, 1] to broadcast over joints/coords
             weights = valid_mask.view(B, S, 1, 1)
-            valid_count = weights.sum() + 1e-8 # Avoid div by zero
         else:
-            weights = torch.ones_like(pred_full[..., 0:1])
-            valid_count = weights.numel()
+            weights = torch.ones((B, S, 1, 1), device=pred_full.device, dtype=pred_full.dtype)
 
         # --- 3. Rotation Loss (L_rot) ---
         # Standard MSE between prediction and GT
@@ -90,7 +88,9 @@ class MotionCorrectionLoss(LossBase):
         loss_rot_element = diff_rot ** 2
         
         # Apply mask and mean reduction
-        loss_rot = (loss_rot_element * weights).sum() / valid_count
+        valid_count = weights.sum() + 1e-8
+        denom_rot = valid_count * J * C
+        loss_rot = (loss_rot_element * weights).sum() / denom_rot
 
         # --- 4. Smoothness Loss (L_smooth) ---
         # Formula: || (R_hat_t - R_hat_t-1) - (R_t - R_t-1) ||^2
@@ -106,10 +106,10 @@ class MotionCorrectionLoss(LossBase):
         loss_smooth_element = diff_vel ** 2
         
         # Adjust weights for the shortened sequence length (S-1)
-        weights_vel = weights[:, 1:] 
+        weights_vel = weights[:, 1:]
         valid_count_vel = weights_vel.sum() + 1e-8
-        
-        loss_smooth = (loss_smooth_element * weights_vel).sum() / valid_count_vel
+        denom_smooth = valid_count_vel * J * C
+        loss_smooth = (loss_smooth_element * weights_vel).sum() / denom_smooth
 
         # --- 5. Total Loss ---
         total_loss = (self.lambda_rot * loss_rot) + (self.lambda_smooth * loss_smooth)

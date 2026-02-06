@@ -45,6 +45,7 @@ class CausalSelfAttention(nn.Module):
     """
     def __init__(self, d_model, n_head, dropout=0.1):
         super().__init__()
+        self.n_head = n_head
         self.attn = nn.MultiheadAttention(
             embed_dim=d_model,
             num_heads=n_head,
@@ -61,16 +62,40 @@ class CausalSelfAttention(nn.Module):
         causal_mask = torch.triu(
             torch.ones(N, N, device=x.device, dtype=torch.bool), diagonal=1
         )
-        
+        if key_padding_mask is None:
+            out, weights = self.attn(
+                query=x,
+                key=x,
+                value=x,
+                attn_mask=causal_mask,
+                key_padding_mask=None,
+                need_weights=True
+            )
+            return self.dropout(out), weights
+
+        # Build a per-query mask to avoid all-masked rows (NaNs) on padded queries.
+        # Mask rule: True = masked. Combine causal + padding keys.
+        combined = causal_mask.unsqueeze(0) | key_padding_mask.unsqueeze(1)
+
+        # For padded query positions, allow self-attend to avoid all-masked rows.
+        diag = torch.eye(N, device=x.device, dtype=torch.bool).unsqueeze(0)
+        combined = combined & ~(diag & key_padding_mask.unsqueeze(2))
+
+        # Expand mask for all heads (expected shape: B*n_head, N, N)
+        combined = combined.unsqueeze(1).expand(B, self.n_head, N, N)
+        combined = combined.reshape(B * self.n_head, N, N)
+
         out, weights = self.attn(
-            query =x, 
-            key = x,
-            value = x,
-            attn_mask = causal_mask,
-            key_padding_mask = key_padding_mask,
-            need_weights = True
+            query=x,
+            key=x,
+            value=x,
+            attn_mask=combined,
+            key_padding_mask=None,
+            need_weights=True
         )
-        
+
+        # Zero out padded queries so they do not leak into later layers.
+        out = out.masked_fill(key_padding_mask.unsqueeze(-1), 0.0)
         return self.dropout(out), weights
     
 class TransformerBlock(nn.Module):

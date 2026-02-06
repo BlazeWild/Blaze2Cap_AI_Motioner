@@ -10,6 +10,7 @@ from blaze2cap.utils.train_utils import (
     get_timestamp,
     init_distributed_mode
 )
+from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
 
 __all__ = [
     "save_checkpoint",
@@ -20,5 +21,6 @@ __all__ = [
     "set_random_seed",
     "Timer",
     "get_timestamp",
-    "init_distributed_mode"
+    "init_distributed_mode",
+    "get_totalcapture_skeleton"
 ]

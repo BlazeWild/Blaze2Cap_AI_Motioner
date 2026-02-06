@@ -30,15 +30,16 @@ from blaze2cap.modeling.eval_motion import evaluate_motion, MotionEvaluator
 from blaze2cap.utils.logging import setup_logging
 from blaze2cap.utils.checkpoint import save_checkpoint, load_checkpoint, auto_resume
 from blaze2cap.utils.train_utils import CudaPreFetcher, set_random_seed, Timer
+from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
 
-# --- CONFIGURATION (Optimized for L4 GPU - 24GB VRAM) ---
+# --- CONFIGURATION (Optimized for RTX 4090 GPU - 24GB VRAM) ---
 CONFIG = {
-    "experiment_name": "motion_transformer_L4_smooth",
+    "experiment_name": "motion_transformer_RTX4090",
     "data_root": "./blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset",
     "save_dir": "./checkpoints",
     "log_dir": "./logs",
     
-    # Model Hyperparameters
+    # Model Hyperparameters (unchanged)
     "num_joints": 25,
     "input_feats": 18,
     "d_model": 256,
@@ -48,14 +49,14 @@ CONFIG = {
     "dropout": 0.1,
     "max_len": 512,
     
-    # Training Hyperparameters (L4 GPU Optimized)
-    "batch_size": 4,         # Smaller batch since each sample yields many windows
-    "num_workers": 0,        # Use single-process loading for stability
-    "max_windows_per_sample": 256,  # Limit windows per file to keep batches manageable
+    # Training Hyperparameters (RTX 4090 Optimized)
+    "batch_size": 8,         # Larger batch for RTX 4090
+    "num_workers": 0,        # Single-process loading (Windows lambda pickle issue)
+    "max_windows_per_sample": 512,  # More windows per sample
     "lr": 1e-4,
     "weight_decay": 0.01,
-    "epochs": 100,           # More epochs for better convergence
-    "window_size": 64,       # Larger window = better temporal context = smoother motion
+    "epochs": 100,
+    "window_size": 64,
     "warmup_pct": 0.1,
     
     # Loss Weights (Motion Smoothing Focused)
@@ -65,8 +66,8 @@ CONFIG = {
     # System
     "seed": 42,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "use_amp": False,        # Disabled to avoid NaN/overflow issues
-    "resume_checkpoint": None,  # Set to "auto" for auto-resume or path to .pth
+    "use_amp": True,         # Enable AMP for RTX 4090
+    "resume_checkpoint": "auto",  # Set to "auto" for auto-resume or path to .pth
     "gradient_clip": 1.0,
 }
 
@@ -116,7 +117,7 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
         optimizer.zero_grad()
         
         with autocast(enabled=config["use_amp"] and device == "cuda"):
-            preds = model(src, key_padding_mask=None)
+            preds = model(src, key_padding_mask=mask)
             timer.tick("forward")
             
             # 3. Compute Loss
@@ -221,12 +222,9 @@ def validate(model, loader, criterion, device, epoch, skeleton_config=None):
     """Validate the model and compute MPJPE/MARE metrics without storing all batches."""
     model.eval()
 
-    # Default skeleton config (should be replaced with real values)
+    # Use real skeleton config from TotalCapture BVH
     if skeleton_config is None:
-        skeleton_config = {
-            'parents': [0, 0, 1, 2, 3, 4, 5, 6, 5, 8, 9, 10, 5, 12, 13, 14, 0, 16, 17, 0, 19, 20],
-            'offsets': torch.ones(22, 3) * 0.1
-        }
+        skeleton_config = get_totalcapture_skeleton()
 
     # Use simple iteration for validation
     pbar = tqdm(total=len(loader), desc=f"Epoch {epoch} [VAL]")
@@ -244,7 +242,7 @@ def validate(model, loader, criterion, device, epoch, skeleton_config=None):
             mask = batch["mask"].to(device)
             tgt = batch["target"].to(device)  # [B, S, 132]
 
-            pred_combined = model.forward_combined(src, key_padding_mask=None)
+            pred_combined = model.forward_combined(src, key_padding_mask=mask)
 
             if tgt.dim() == 3 and tgt.shape[-1] == 132:
                 tgt = tgt.view(tgt.shape[0], tgt.shape[1], 22, 6)
