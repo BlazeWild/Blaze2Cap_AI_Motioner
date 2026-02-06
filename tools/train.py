@@ -18,9 +18,11 @@ sys.path.insert(0, PROJECT_ROOT)
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.cuda.amp import GradScaler, autocast
+# from torch.cuda.amp import GradScaler, autocast # Deprecated in 2.4+
+from torch.amp import GradScaler, autocast
 from tqdm import tqdm
 import numpy as np
+from collections import defaultdict
 
 # --- Blaze2Cap Modules (via __init__.py exports) ---
 from blaze2cap.modules.models import MotionTransformer
@@ -50,9 +52,9 @@ CONFIG = {
     "dropout": 0.1,
     "max_len": 512,
     
-    # Training Hyperparameters (RTX 4090 Optimized)
-    "batch_size": 8,         # Larger batch for RTX 4090
-    "num_workers": 0,        # Single-process loading (Windows lambda pickle issue)
+    # Training Hyperparameters (RTX 4090 / L40S Optimized)
+    "batch_size": 16,         # Reduced to prevent System RAM OOM
+    "num_workers": 4,         # Safe number of workers for 64GB RAM
     "max_windows_per_sample": 512,  # More windows per sample
     "lr": 1e-4,
     "weight_decay": 0.01,
@@ -120,7 +122,7 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
         # 2. Forward Pass with Mixed Precision
         optimizer.zero_grad()
         
-        with autocast(enabled=config["use_amp"] and device == "cuda"):
+        with autocast('cuda', enabled=config["use_amp"] and device == "cuda"):
             preds = model(src, key_padding_mask=mask) # Returns Tuple (root, body)
             timer.tick("forward")
             
@@ -302,7 +304,9 @@ def main():
         shuffle=True, 
         num_workers=CONFIG["num_workers"],
         pin_memory=True,
-        drop_last=True,  # Avoid batch size issues
+        drop_last=True,
+        persistent_workers=CONFIG["num_workers"] > 0,
+        prefetch_factor=2 if CONFIG["num_workers"] > 0 else None,
         collate_fn=lambda b: collate_flatten_windows(b, CONFIG.get("max_windows_per_sample"))
     )
     val_loader = DataLoader(
@@ -311,6 +315,8 @@ def main():
         shuffle=False, 
         num_workers=CONFIG["num_workers"],
         pin_memory=True,
+        persistent_workers=CONFIG["num_workers"] > 0,
+        prefetch_factor=2 if CONFIG["num_workers"] > 0 else None,
         collate_fn=lambda b: collate_flatten_windows(b, None)
     )
     
@@ -360,7 +366,7 @@ def main():
     ).to(device)
     
     # 6. Mixed Precision Scaler
-    scaler = GradScaler(enabled=CONFIG["use_amp"] and device == "cuda")
+    scaler = GradScaler('cuda', enabled=CONFIG["use_amp"] and device == "cuda")
     
     # 7. Resume (Optional)
     start_epoch = 0
