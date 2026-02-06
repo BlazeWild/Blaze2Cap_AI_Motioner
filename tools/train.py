@@ -33,6 +33,7 @@ from blaze2cap.utils.train_utils import CudaPreFetcher, set_random_seed, Timer
 from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
 
 # --- CONFIGURATION (Optimized for RTX 4090 GPU - 24GB VRAM) ---
+# --- CONFIGURATION (Optimized for RTX 4090 GPU - 24GB VRAM) ---
 CONFIG = {
     "experiment_name": "motion_transformer_RTX4090",
     "data_root": "./blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset",
@@ -59,9 +60,13 @@ CONFIG = {
     "window_size": 64,
     "warmup_pct": 0.1,
     
-    # Loss Weights (Motion Smoothing Focused)
-    "lambda_rot": 1.0,       # Keep geometry grounded
-    "lambda_smooth": 5.0,    # High smoothness weight for velocity consistency
+    # Loss Weights (Updated for Hybrid + MPJPE)
+    "lambda_root_vel": 1.0,
+    "lambda_root_rot": 1.0,
+    "lambda_pose_rot": 1.0,
+    "lambda_pose_pos": 2.0,  # MPJPE (Structure)
+    "lambda_smooth": 10.0,   # Boosted Smoothness
+    "lambda_accel": 20.0,    # Boosted Acceleration
     
     # System
     "seed": 42,
@@ -77,9 +82,8 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
     model.train()
     timer = Timer()
     
-    running_loss = 0.0
-    running_rot = 0.0
-    running_smooth = 0.0
+    # Track all loss components
+    stats = defaultdict(float)
     
     # Use CudaPreFetcher for speed (only if CUDA available)
     use_prefetcher = device == "cuda" and config.get("num_workers", 0) > 0
@@ -117,7 +121,7 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
         optimizer.zero_grad()
         
         with autocast(enabled=config["use_amp"] and device == "cuda"):
-            preds = model(src, key_padding_mask=mask)
+            preds = model(src, key_padding_mask=mask) # Returns Tuple (root, body)
             timer.tick("forward")
             
             # 3. Compute Loss
@@ -153,10 +157,11 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
         scheduler.step()
         timer.tick("backward")
         
-        # 6. Stats
-        running_loss += loss.item()
-        running_rot += loss_dict["l_rot"].item()
-        running_smooth += loss_dict["l_smooth"].item()
+        # 6. Accumulate Stats
+        stats["loss"] += loss.item()
+        for k, v in loss_dict.items():
+            if k != "loss":
+                stats[k] += v.item()
         
         # Next batch
         if use_prefetcher:
@@ -175,12 +180,9 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
     
     # Return average metrics
     N = max(batch_idx, 1)
-    return {
-        "loss": running_loss / N,
-        "rot": running_rot / N,
-        "smooth": running_smooth / N,
-        "time_stats": timer.report()
-    }
+    avg_stats = {k: v / N for k, v in stats.items()}
+    avg_stats["time_stats"] = timer.report()
+    return avg_stats
 
 
 def collate_flatten_windows(batch, max_windows_per_sample=None):
@@ -234,6 +236,7 @@ def validate(model, loader, criterion, device, epoch, skeleton_config=None):
     mpjpe_sum = 0.0
     mpjpe_count = 0
 
+    # MotionEvaluator (Consistent with Loss FK)
     evaluator = MotionEvaluator(skeleton_config['parents'], skeleton_config['offsets'])
 
     with torch.no_grad():
@@ -242,30 +245,37 @@ def validate(model, loader, criterion, device, epoch, skeleton_config=None):
             mask = batch["mask"].to(device)
             tgt = batch["target"].to(device)  # [B, S, 132]
 
-            pred_combined = model.forward_combined(src, key_padding_mask=mask)
+            # Model Forward
+            root_out, body_out = model(src, key_padding_mask=mask)
+            
+            # Combine for Evaluator [B, S, 22, 6]
+            pred_combined = torch.cat([root_out, body_out], dim=2)
 
             if tgt.dim() == 3 and tgt.shape[-1] == 132:
                 tgt = tgt.view(tgt.shape[0], tgt.shape[1], 22, 6)
 
-            # MARE accumulation (mean of squared diff over all elements)
-            diff = (pred_combined - tgt) ** 2
-            mare_sum += diff.sum().item()
-            mare_count += diff.numel()
-
-            # MPJPE accumulation (compute FK per batch)
-            pred_xyz = evaluator._forward_kinematics(pred_combined)
-            gt_xyz = evaluator._forward_kinematics(tgt)
-            dist = torch.norm(pred_xyz - gt_xyz, dim=-1)
-            mpjpe_sum += dist.sum().item()
-            mpjpe_count += dist.numel()
-
+            # Compute Metrics (Evaluator internally handles FK on Rotations only)
+            metrics_batch = evaluator.compute_metrics(pred_combined, tgt)
+            
+            # Since compute_metrics returns mean per batch, we need to weight by batch size?
+            # Actually compute_metrics returns scalar averages.
+            # We will approximate full dataset mean by averaging batch means (valid if consistent batch size)
+            # Or better, we trust the evaluator if it returned sums? No it returns means.
+            # We'll accumulate frames.
+            B, S = pred_combined.shape[0], pred_combined.shape[1]
+            total_elements = B * S * 22 # Approx total joints
+            
+            mpjpe_sum += metrics_batch["MPJPE"] * B
+            mare_sum += metrics_batch["MARE"] * B
+            mpjpe_count += B # Count batches effectively
+            
             pbar.update(1)
 
     pbar.close()
 
     metrics = {
         "MPJPE": mpjpe_sum / max(mpjpe_count, 1),
-        "MARE": mare_sum / max(mare_count, 1)
+        "MARE": mare_sum / max(mpjpe_count, 1)
     }
     return metrics
 
@@ -341,8 +351,12 @@ def main():
     
     # 5. Loss
     criterion = MotionCorrectionLoss(
-        lambda_rot=CONFIG["lambda_rot"], 
-        lambda_smooth=CONFIG["lambda_smooth"]
+        lambda_root_vel=CONFIG["lambda_root_vel"],
+        lambda_root_rot=CONFIG["lambda_root_rot"],
+        lambda_pose_rot=CONFIG["lambda_pose_rot"],
+        lambda_pose_pos=CONFIG["lambda_pose_pos"],
+        lambda_smooth=CONFIG["lambda_smooth"],
+        lambda_accel=CONFIG["lambda_accel"]
     ).to(device)
     
     # 6. Mixed Precision Scaler
@@ -373,8 +387,17 @@ def main():
             model, train_loader, optimizer, scheduler, 
             criterion, scaler, device, epoch, CONFIG
         )
-        logger.info(f"Train Loss: {train_metrics['loss']:.5f} "
-                   f"(Rot: {train_metrics['rot']:.5f}, Smooth: {train_metrics['smooth']:.5f})")
+        
+        # Enhanced Logging
+        log_str = f"Train Loss: {train_metrics['loss']:.5f} | "
+        log_str += f"RootV: {train_metrics.get('l_root_vel', 0):.4f} "
+        log_str += f"RootR: {train_metrics.get('l_root_rot', 0):.4f} "
+        log_str += f"PoseR: {train_metrics.get('l_pose_rot', 0):.4f} "
+        log_str += f"MPJPE: {train_metrics.get('l_pose_pos', 0):.4f} "
+        log_str += f"Smth: {train_metrics.get('l_smooth', 0):.4f} "
+        log_str += f"Accel: {train_metrics.get('l_accel', 0):.4f}"
+        
+        logger.info(log_str)
         logger.debug(f"Timing:\n{train_metrics['time_stats']}")
         
         # Validate
@@ -382,7 +405,7 @@ def main():
         mpjpe = val_metrics["MPJPE"]
         mare = val_metrics["MARE"]
         
-        logger.info(f"Val MPJPE: {mpjpe:.5f} | Val MARE: {mare:.5f}")
+        logger.info(f"Val MPJPE: {mpjpe:.5f} mm | Val MARE: {mare:.5f}")
         
         # Save Checkpoint
         is_best = mpjpe < best_mpjpe

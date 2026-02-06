@@ -48,13 +48,13 @@ class PoseSequenceDataset(data.Dataset):
         N = self.window_size
         F, J, _ = raw_data.shape
         
-        # 1. Padding Prep
-        validity = np.ones((F, 1), dtype=np.float32)
-        padding_data = np.repeat(raw_data[0:1], N-1, axis=0)
-        padding_validity = np.zeros((N-1, 1), dtype=np.float32)
+        # 1. Padding Strategy (Input): Valid Static History
+        # Instead of zero-padding, replicate the first frame N-1 times.
+        # This simulates "standing still" before the sequence starts.
+        padding_data = np.repeat(raw_data[0:1], N-1, axis=0) # (N-1, 25, 7)
         
+        # Concatenate: [History, Sequence]
         full_data = np.concatenate([padding_data, raw_data], axis=0)
-        full_validity = np.concatenate([padding_validity, validity], axis=0)
         F_pad = full_data.shape[0]
 
         # 2. Extract Components
@@ -100,8 +100,6 @@ class PoseSequenceDataset(data.Dataset):
         bone_vecs[:, leaf_mask] = 0 
         
         parent_vecs = world_centered - world_centered[:, self.parents]
-        # (Skipping detailed Neck/Hip parent fixes for brevity, strictly keep your implementation logic here)
-        # ... [Insert your specific parent vector logic here if strictly needed] ...
 
         # 8. Stack Features
         # Using processed Screen Centered and Screen Deltas
@@ -119,7 +117,6 @@ class PoseSequenceDataset(data.Dataset):
         # Flatten
         D = 18 * 25
         features_flat = features.reshape(F_pad, D)
-        features_flat *= full_validity # Zero out padding
         
         # Windowing
         strides = (features_flat.strides[0], features_flat.strides[0], features_flat.strides[1])
@@ -127,9 +124,11 @@ class PoseSequenceDataset(data.Dataset):
             features_flat, shape=(F, N, D), strides=strides
         )
         
-        idx_matrix = np.arange(F)[:, None] + np.arange(N)
-        # PyTorch key_padding_mask: True = padding (ignore), False = valid (attend)
-        M_masks = (full_validity[idx_matrix, 0] <= 0.5)  # Inverted for PyTorch
+        # 3. Masking Removal: The Valid Static Rule
+        # We now consider the padded history as VALID data to attend to.
+        # PyTorch `key_padding_mask` convention: False = Valid / Attend, True = Ignore.
+        # So we return a mask of all False.
+        M_masks = np.zeros((F, N), dtype=bool) 
         
         return X_windows, M_masks
 
@@ -140,7 +139,6 @@ class PoseSequenceDataset(data.Dataset):
         item = self.samples[idx]
         
         # Paths from JSON already include blaze_augmented/gt_augmented folders
-        # Example: item["source"] = "blaze_augmented/S1/acting1/cam1/blaze_S1_acting1_cam1_seg0_s1_o0.npy"
         input_path = os.path.join(self.dataset_root, item["source"])
         target_path = os.path.join(self.dataset_root, item["target"])
         
@@ -148,7 +146,8 @@ class PoseSequenceDataset(data.Dataset):
         input_data = np.load(input_path).astype(np.float32)
         gt_data = np.load(target_path).astype(np.float32)
 
-        # Sanitize NaNs/Infs to avoid training instability
+        # 4. Sanitization: Safety First
+        # Add np.nan_to_num immediately after loading
         input_data = np.nan_to_num(input_data, nan=0.0, posinf=0.0, neginf=0.0)
         gt_data = np.nan_to_num(gt_data, nan=0.0, posinf=0.0, neginf=0.0)
         
@@ -163,8 +162,8 @@ class PoseSequenceDataset(data.Dataset):
 
         # Final safety against NaNs/Infs after processing
         X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
-        M = np.nan_to_num(M, nan=1.0, posinf=1.0, neginf=1.0)
-
+        # M is just booleans now, no nan check needed really, but kept clean.
+        
         # Clamp features to a reasonable range to avoid overflow
         X = np.clip(X, -10.0, 10.0)
         
@@ -177,8 +176,9 @@ class PoseSequenceDataset(data.Dataset):
         # Flatten GT: (F, 22, 6) -> (F, 132)
         Y_flat = gt_data.reshape(F, -1)  # (F, 132)
         
-        # Create padded GT matching input padding strategy
-        # Pad with first frame repeated at start (same as input)
+        # 2. Padding Strategy (Ground Truth): Match Input
+        # Pad with first frame repeated at start.
+        # Since GT is Deltas, Frame 0 is usually 0. Repeating it creates [0, 0, ... 0] history.
         padding_gt = np.repeat(Y_flat[0:1], N-1, axis=0)  # (N-1, 132)
         full_gt = np.concatenate([padding_gt, Y_flat], axis=0)  # (F+N-1, 132)
         
@@ -192,8 +192,9 @@ class PoseSequenceDataset(data.Dataset):
         Y_windows = np.clip(Y_windows, -2.0, 2.0)
         
         # Return windowed data (sequence-to-sequence)
+        # Mask is now all False (Valid), but we still pass it for API compatibility.
         return {
             "source": torch.from_numpy(X.copy()),       # (F, window, 450)
-            "mask": torch.from_numpy(M.copy()),         # (F, window) - True = padding
+            "mask": torch.from_numpy(M.copy()),         # (F, window) - All False
             "target": torch.from_numpy(Y_windows.copy())  # (F, window, 132)
         }

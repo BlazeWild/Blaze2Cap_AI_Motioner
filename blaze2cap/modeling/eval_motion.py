@@ -25,23 +25,28 @@ class MotionEvaluator:
         self.bone_lengths = bone_lengths
         self.results = {}
 
-    def compute_metrics(self, pred_rot, gt_rot):
+    def compute_metrics(self, pred_full, gt_full):
         """
         Args:
-            pred_rot: [Batch, Seq, 22, 6] (6D format)
-            gt_rot: [Batch, Seq, 22, 6] (6D format)
+            pred_full: [Batch, Seq, 22, 6] (Full output: Index 0=RootPos, 1=RootRot, 2..21=BodyRot)
+            gt_full: [Batch, Seq, 22, 6]
         Returns:
             dict: {"MPJPE": float (in mm), "MARE": float}
         """
-        # 1. Rotation Error (MARE) - calculated on 6D directly or Matrices
-        # We approximate it here using MSE of the 6D vector for speed, 
-        # or proper Geodesic distance if you convert to matrix.
-        mare = torch.mean((pred_rot - gt_rot) ** 2).item()
+        # Slice to get only rotations involved in FK (Joints 1-21)
+        # Index 0 is Root Linear Velocity (not a rotation)
+        # Index 1 is Root Rotation (First joint in FK chain)
+        # Index 2-21 are Body Rotations
+        pred_rot_6d = pred_full[:, :, 1:, :] # (B, S, 21, 6)
+        gt_rot_6d = gt_full[:, :, 1:, :]     # (B, S, 21, 6)
+
+        # 1. Rotation Error (MARE) - calculated on 6D directly
+        mare = torch.mean((pred_rot_6d - gt_rot_6d) ** 2).item()
 
         # 2. Position Error (MPJPE)
         # We must run Forward Kinematics (FK) to get 3D positions
-        pred_pos = self._forward_kinematics(pred_rot)
-        gt_pos = self._forward_kinematics(gt_rot)
+        pred_pos = self._forward_kinematics(pred_rot_6d)
+        gt_pos = self._forward_kinematics(gt_rot_6d)
         
         # Euclidean distance per joint (in meters since offsets are in meters)
         diff = pred_pos - gt_pos # [B, S, 22, 3]
@@ -52,58 +57,61 @@ class MotionEvaluator:
 
         return {"MPJPE": mpjpe_mm, "MARE": mare}
 
-    def _forward_kinematics(self, rot_6d):
-        """
-        Simple FK implementation.
-        Converts Local 6D Rotations -> Global 3D Positions.
-        """
-        # Note: This is a simplified FK for evaluation. 
-        # In production, you might use a library like pytorch3d or your own optimized FK.
-        
-        B, S, J, _ = rot_6d.shape
-        
-        # 1. Convert 6D -> 3D Rotation Matrix [B, S, J, 3, 3]
-        rot_mat = self._cont6d_to_mat(rot_6d)
-        
-        # 2. Iterate hierarchy
-        # Global transforms
-        glob_pos = torch.zeros(B, S, J, 3, device=rot_6d.device)
-        glob_rot = torch.zeros(B, S, J, 3, 3, device=rot_6d.device)
-        
-        # Root (Index 0)
-        glob_pos[:, :, 0] = 0 # Root usually at origin or specific offset
-        glob_rot[:, :, 0] = rot_mat[:, :, 0]
-
-        for i in range(1, J):
-            parent = self.parents[i]
-            # Local position of joint i relative to parent (Bone vector)
-            # Usually: Rot_parent * Bone_length
-            bone = self.bone_lengths[i].to(rot_6d.device)
-            
-            # P_global = P_parent + R_parent * P_local
-            # We assume bone vectors are aligned with offsets.
-            # (Simplified logic - requires your specific bone offsets)
-            offset = torch.matmul(glob_rot[:, :, parent], bone.unsqueeze(-1)).squeeze(-1)
-            
-            glob_pos[:, :, i] = glob_pos[:, :, parent] + offset
-            glob_rot[:, :, i] = torch.matmul(glob_rot[:, :, parent], rot_mat[:, :, i])
-            
-        return glob_pos
-
     def _cont6d_to_mat(self, d6):
-        """
-        Converts 6D continuous representation to 3x3 rotation matrix.
-        """
-        a1 = d6[..., :3]
-        a2 = d6[..., 3:]
-        
-        # Gram-Schmidt normalization
+        """Standard 6D -> 3x3 Matrix conversion"""
+        a1, a2 = d6[..., :3], d6[..., 3:]
         b1 = torch.nn.functional.normalize(a1, dim=-1)
         b2 = a2 - (b1 * torch.sum(b1 * a2, dim=-1, keepdim=True))
         b2 = torch.nn.functional.normalize(b2, dim=-1)
         b3 = torch.cross(b1, b2, dim=-1)
-        
         return torch.stack((b1, b2, b3), dim=-1)
+
+    def _forward_kinematics(self, body_rot_6d):
+        """
+        Differentiable Forward Kinematics (Matches loss.py)
+        Args:
+            body_rot_6d: Tensor [B, S, 21, 6] (Joints 1-21)
+        Returns:
+            positions: Tensor [B, S, 22, 3] - 3D coordinates in Root-Centered space.
+        """
+        B, S, J_body, C = body_rot_6d.shape
+        # 1. Convert 6D -> Matrix
+        rot_mats = self._cont6d_to_mat(body_rot_6d) # (B, S, 21, 3, 3)
+
+        # 2. Build Global Rotations and Positions lists
+        # Initialize with Root (Joint 0) - Fixed
+        # Global Rot 0: Identity
+        root_rot = torch.eye(3, device=body_rot_6d.device).view(1, 1, 3, 3).expand(B, S, 3, 3)
+        # Global Pos 0: Zero
+        root_pos = torch.zeros((B, S, 3), device=body_rot_6d.device)
+        
+        global_rots = [root_rot]
+        global_pos = [root_pos]
+        
+        # Iterate Body Joints (1 to 21)
+        for i in range(1, 22):
+            parent_idx = self.parents[i]
+            offset = self.bone_lengths[i].view(1, 1, 3, 1).to(body_rot_6d.device) # (1, 1, 3, 1)
+            
+            # Get Parent Global Transforms
+            parent_rot = global_rots[parent_idx] # (B, S, 3, 3)
+            parent_pos = global_pos[parent_idx]  # (B, S, 3)
+            
+            # Current Local Rotation
+            # Map joint index 'i' to body_rot_6d index 'i-1'
+            local_rot = rot_mats[:, :, i-1] # (B, S, 3, 3)
+            
+            # Calculate Global Rotation: R_global = R_parent @ R_local
+            curr_rot = torch.matmul(parent_rot, local_rot)
+            global_rots.append(curr_rot)
+            
+            # Calculate Global Position: P_global = P_parent + (R_parent @ Offset)
+            rotated_offset = torch.matmul(parent_rot, offset).squeeze(-1) # (B, S, 3)
+            curr_pos = parent_pos + rotated_offset
+            global_pos.append(curr_pos)
+            
+        # Stack results
+        return torch.stack(global_pos, dim=2) # (B, S, 22, 3)
 
 def evaluate_motion(predictions, targets, skeleton_config):
     """
