@@ -48,7 +48,7 @@ TEST_SUBJECTS = {'S1', 'S2', 'S3', 'S4', 'S5'}
 
 data_list = []
 
-blaze_root = os.path.join(dataset_root, 'blaze_augmented')
+blaze_root = os.path.join(dataset_root, 'blazepose_augmented')
 gt_root = os.path.join(dataset_root, 'gt_augmented')
 
 print(f"Scanning dataset at: {os.path.relpath(dataset_root, script_dir)}")

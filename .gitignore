@@ -54,6 +54,7 @@ logs/
 # Temporarily exclude for staged pushing
 blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blaze_augmented/
 blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gt_augmented/
+blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazepose_augmented/
 
 # OS
 Thumbs.db
