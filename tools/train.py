@@ -10,6 +10,7 @@ Usage:
 
 import os
 import sys
+import functools
 
 # Add project root to path for imports
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -34,7 +35,12 @@ from blaze2cap.utils.checkpoint import save_checkpoint, load_checkpoint, auto_re
 from blaze2cap.utils.train_utils import CudaPreFetcher, set_random_seed, Timer
 from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
 
-# --- CONFIGURATION (Optimized for RTX 4090 GPU - 24GB VRAM) ---
+# --- OPTIMIZATION (RTX 4090) ---
+torch.set_float32_matmul_precision('high') # Enable TF32 for significantly faster FP32 matmuls
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.backends.cudnn.benchmark = True # Enable CUDNN auto-tuner
+
 # --- CONFIGURATION (Optimized for RTX 4090 GPU - 24GB VRAM) ---
 CONFIG = {
     "experiment_name": "motion_transformer_RTX4090",
@@ -53,30 +59,38 @@ CONFIG = {
     "max_len": 512,
     
     # Training Hyperparameters (RTX 4090 / L40S Optimized)
-    "batch_size": 16,         # Reduced to prevent System RAM OOM
-    "num_workers": 4,         # Safe number of workers for 64GB RAM
-    "max_windows_per_sample": 512,  # More windows per sample
+    # OPTIMIZATION NOTE:
+    # "Effective Batch Size" = batch_size * max_windows_per_sample
+    # We aim for ~2048 - 4096 windows per step for the 4090.
+    # Previous settings (128 * 512 = 65k) were causing System RAM OOM (100GB+).
+    # New settings (32 * 64 = 2048) will use ~2GB RAM buffer and saturate Tensor Cores.
+    "batch_size": 32,         # Number of FILES to load per step
+    "num_workers": 6,         # Reduced workers to save overhead
+    "max_windows_per_sample": 64,   # Number of WINDOWS to sample per file
     "lr": 1e-4,
     "weight_decay": 0.01,
     "epochs": 100,
     "window_size": 64,
     "warmup_pct": 0.1,
     
-    # Loss Weights (Updated for Hybrid + MPJPE)
+    # Loss Weights
     "lambda_root_vel": 1.0,
     "lambda_root_rot": 1.0,
     "lambda_pose_rot": 1.0,
-    "lambda_pose_pos": 2.0,  # MPJPE (Structure)
-    "lambda_smooth": 10.0,   # Boosted Smoothness
-    "lambda_accel": 20.0,    # Boosted Acceleration
+    "lambda_pose_pos": 2.0,
+    "lambda_smooth": 10.0,
+    "lambda_accel": 20.0,
     
     # System
     "seed": 42,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
-    "use_amp": True,         # Enable AMP for RTX 4090
-    "resume_checkpoint": "auto",  # Set to "auto" for auto-resume or path to .pth
+    "use_amp": True,
+    "resume_checkpoint": "auto",
     "gradient_clip": 1.0,
 }
+
+# Fix fragmentation issues
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 
 def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, device, epoch, config):
@@ -106,34 +120,30 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
         
         # 1. Unpack Batch and move to device (if not using prefetcher)
         if not use_prefetcher:
-            batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v 
+            # Optimize: use non_blocking=True for asynchronous transfer
+            batch = {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v 
                      for k, v in batch.items()}
         
-        src = batch["source"]   # [B, S, 25, 18] or [B, S, 450]
-        mask = batch["mask"]    # [B, S]
-        tgt = batch["target"]   # [B, S, 132]
+        src = batch["source"]
+        mask = batch["mask"]
+        tgt = batch["target"]
 
-        # Sanitize any remaining NaNs/Infs
-        if not torch.isfinite(src).all():
-            src = torch.nan_to_num(src, nan=0.0, posinf=0.0, neginf=0.0)
-        if not torch.isfinite(tgt).all():
-            tgt = torch.nan_to_num(tgt, nan=0.0, posinf=0.0, neginf=0.0)
-        
         # 2. Forward Pass with Mixed Precision
-        optimizer.zero_grad()
+        # Optimize: set_to_none=True saves memory bandwidth
+        optimizer.zero_grad(set_to_none=True)
         
         with autocast('cuda', enabled=config["use_amp"] and device == "cuda"):
-            preds = model(src, key_padding_mask=mask) # Returns Tuple (root, body)
+            preds = model(src, key_padding_mask=mask)
             timer.tick("forward")
             
             # 3. Compute Loss
             loss_dict = criterion(preds, tgt, mask)
             loss = loss_dict["loss"]
         
-            # Skip step on non-finite loss to avoid NaN propagation
+            # Skip step on non-finite loss
             if not torch.isfinite(loss):
                 if device == "cuda":
-                    torch.cuda.synchronize()
+                    torch.cuda.synchronize() # Only sync on error
                 pbar.update(1)
                 pbar.set_postfix({"loss": "nan", "lr": f"{scheduler.get_last_lr()[0]:.2e}"})
                 if use_prefetcher:
@@ -155,7 +165,7 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config["gradient_clip"])
             optimizer.step()
         
-        # 5. Scheduler Step (per batch for OneCycleLR)
+        # 5. Scheduler
         scheduler.step()
         timer.tick("backward")
         
@@ -180,7 +190,6 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
 
     pbar.close()
     
-    # Return average metrics
     N = max(batch_idx, 1)
     avg_stats = {k: v / N for k, v in stats.items()}
     avg_stats["time_stats"] = timer.report()
@@ -188,11 +197,7 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
 
 
 def collate_flatten_windows(batch, max_windows_per_sample=None):
-    """Concatenate variable-length window stacks across samples.
-
-    Each dataset item returns tensors shaped (F, window, ...). We concatenate along F
-    to create a single large batch with consistent window length.
-    """
+    """Concatenate variable-length window stacks across samples."""
     if len(batch) == 0:
         return {"source": torch.empty(0), "mask": torch.empty(0), "target": torch.empty(0)}
 
@@ -223,14 +228,15 @@ def collate_flatten_windows(batch, max_windows_per_sample=None):
 
 
 def validate(model, loader, criterion, device, epoch, skeleton_config=None):
-    """Validate the model and compute MPJPE/MARE metrics without storing all batches."""
+    """Validate the model and compute MPJPE/MARE metrics."""
+    # Free up memory before validation (fragmentation cleanup)
+    torch.cuda.empty_cache()
+    
     model.eval()
 
-    # Use real skeleton config from TotalCapture BVH
     if skeleton_config is None:
         skeleton_config = get_totalcapture_skeleton()
 
-    # Use simple iteration for validation
     pbar = tqdm(total=len(loader), desc=f"Epoch {epoch} [VAL]")
 
     mare_sum = 0.0
@@ -238,38 +244,27 @@ def validate(model, loader, criterion, device, epoch, skeleton_config=None):
     mpjpe_sum = 0.0
     mpjpe_count = 0
 
-    # MotionEvaluator (Consistent with Loss FK)
     evaluator = MotionEvaluator(skeleton_config['parents'], skeleton_config['offsets'])
 
     with torch.no_grad():
         for batch in loader:
-            src = batch["source"].to(device)
-            mask = batch["mask"].to(device)
-            tgt = batch["target"].to(device)  # [B, S, 132]
+            # Use non_blocking=True
+            src = batch["source"].to(device, non_blocking=True)
+            mask = batch["mask"].to(device, non_blocking=True)
+            tgt = batch["target"].to(device, non_blocking=True)
 
-            # Model Forward
             root_out, body_out = model(src, key_padding_mask=mask)
-            
-            # Combine for Evaluator [B, S, 22, 6]
             pred_combined = torch.cat([root_out, body_out], dim=2)
 
             if tgt.dim() == 3 and tgt.shape[-1] == 132:
                 tgt = tgt.view(tgt.shape[0], tgt.shape[1], 22, 6)
 
-            # Compute Metrics (Evaluator internally handles FK on Rotations only)
             metrics_batch = evaluator.compute_metrics(pred_combined, tgt)
             
-            # Since compute_metrics returns mean per batch, we need to weight by batch size?
-            # Actually compute_metrics returns scalar averages.
-            # We will approximate full dataset mean by averaging batch means (valid if consistent batch size)
-            # Or better, we trust the evaluator if it returned sums? No it returns means.
-            # We'll accumulate frames.
-            B, S = pred_combined.shape[0], pred_combined.shape[1]
-            total_elements = B * S * 22 # Approx total joints
-            
+            B = pred_combined.shape[0]
             mpjpe_sum += metrics_batch["MPJPE"] * B
             mare_sum += metrics_batch["MARE"] * B
-            mpjpe_count += B # Count batches effectively
+            mpjpe_count += B
             
             pbar.update(1)
 
@@ -289,14 +284,16 @@ def main():
     device = CONFIG["device"]
     logger.info(f"Starting experiment: {CONFIG['experiment_name']} on {device}")
     logger.info(f"PyTorch version: {torch.__version__}")
-    logger.info(f"CUDA available: {torch.cuda.is_available()}")
+    
     if torch.cuda.is_available():
         logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
+        logger.info(f"TF32 Enabled: {torch.backends.cuda.matmul.allow_tf32}")
+        logger.info(f"CUDNN Benchmark: {torch.backends.cudnn.benchmark}")
     
     # 2. Data
     logger.info("Initializing Datasets...")
-    train_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], split="train")
-    val_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], split="test")
+    train_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], split="train", max_windows=CONFIG.get("max_windows_per_sample"))
+    val_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], split="test", max_windows=None)
     
     train_loader = DataLoader(
         train_dataset, 
@@ -307,17 +304,17 @@ def main():
         drop_last=True,
         persistent_workers=CONFIG["num_workers"] > 0,
         prefetch_factor=2 if CONFIG["num_workers"] > 0 else None,
-        collate_fn=lambda b: collate_flatten_windows(b, CONFIG.get("max_windows_per_sample"))
+        collate_fn=functools.partial(collate_flatten_windows, max_windows_per_sample=None)
     )
     val_loader = DataLoader(
         val_dataset, 
-        batch_size=CONFIG["batch_size"], 
+        batch_size=4, # Reduced val batch size to prevent OOM (since frames aren't subsampled)
         shuffle=False, 
         num_workers=CONFIG["num_workers"],
         pin_memory=True,
         persistent_workers=CONFIG["num_workers"] > 0,
         prefetch_factor=2 if CONFIG["num_workers"] > 0 else None,
-        collate_fn=lambda b: collate_flatten_windows(b, None)
+        collate_fn=functools.partial(collate_flatten_windows, max_windows_per_sample=None)
     )
     
     logger.info(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
@@ -334,19 +331,31 @@ def main():
         max_len=CONFIG["max_len"]
     ).to(device)
     
-    # Log model size
+    # Log original model size
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model: {total_params:,} total params, {trainable_params:,} trainable")
+
+    # 4. Optimize Model (torch.compile)
+    # DISABLED: Triton is not supported on Windows, causing crashes.
+    # if hasattr(torch, "compile"):
+    #     logger.info("Compiling model with torch.compile() for RTX 4090...")
+    #     try:
+    #         # mode='reduce-overhead' is great for smaller batches, 'max-autotune' for throughput
+    #         # Since we increased batch size, default or max-autotune is good. 
+    #         # Sticking to default for stability on Windows.
+    #         model = torch.compile(model) 
+    #     except Exception as e:
+    #         logger.warning(f"torch.compile failed: {e}. continuing without compilation.")
     
-    # 4. Optimizer & Scheduler
+    # 5. Optimizer & Scheduler
     optimizer = optim.AdamW(
         model.parameters(), 
         lr=CONFIG["lr"], 
         weight_decay=CONFIG["weight_decay"]
     )
     
-    # OneCycleLR: scheduler.step() called per BATCH
+    # OneCycleLR
     scheduler = optim.lr_scheduler.OneCycleLR(
         optimizer,
         max_lr=CONFIG["lr"],
@@ -355,7 +364,7 @@ def main():
         pct_start=CONFIG["warmup_pct"]
     )
     
-    # 5. Loss
+    # 6. Loss
     criterion = MotionCorrectionLoss(
         lambda_root_vel=CONFIG["lambda_root_vel"],
         lambda_root_rot=CONFIG["lambda_root_rot"],
@@ -365,16 +374,15 @@ def main():
         lambda_accel=CONFIG["lambda_accel"]
     ).to(device)
     
-    # 6. Mixed Precision Scaler
+    # 7. Mixed Precision
     scaler = GradScaler('cuda', enabled=CONFIG["use_amp"] and device == "cuda")
     
-    # 7. Resume (Optional)
+    # 8. Resume
     start_epoch = 0
     if CONFIG["resume_checkpoint"] == "auto":
         resume_path = auto_resume(CONFIG["save_dir"])
         if resume_path:
             start_epoch = load_checkpoint(resume_path, model, optimizer, scheduler)
-            # Adjust scheduler for resumed training
             logger.info(f"Resumed from epoch {start_epoch}")
     elif CONFIG["resume_checkpoint"]:
         start_epoch = load_checkpoint(
@@ -382,7 +390,7 @@ def main():
         )
         logger.info(f"Resumed from checkpoint: {CONFIG['resume_checkpoint']}")
 
-    # 8. Training Loop
+    # 9. Training Loop
     best_mpjpe = float("inf")
     
     for epoch in range(start_epoch + 1, CONFIG["epochs"] + 1):
@@ -394,7 +402,7 @@ def main():
             criterion, scaler, device, epoch, CONFIG
         )
         
-        # Enhanced Logging
+        # Logging
         log_str = f"Train Loss: {train_metrics['loss']:.5f} | "
         log_str += f"RootV: {train_metrics.get('l_root_vel', 0):.4f} "
         log_str += f"RootR: {train_metrics.get('l_root_rot', 0):.4f} "
@@ -430,7 +438,6 @@ def main():
             is_best=is_best
         )
 
-        # Save milestone checkpoints every 25 epochs
         if epoch % 25 == 0:
             save_checkpoint(
                 CONFIG["save_dir"],

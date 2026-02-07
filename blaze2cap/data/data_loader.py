@@ -5,9 +5,10 @@ import torch
 from torch.utils import data
 
 class PoseSequenceDataset(data.Dataset):
-    def __init__(self, dataset_root: str, window_size: int, split: str = "train"):
+    def __init__(self, dataset_root: str, window_size: int, split: str = "train", max_windows: int = None):
         self.dataset_root = dataset_root
         self.window_size = window_size
+        self.max_windows = max_windows
         
         # Load Map
         json_path = os.path.join(dataset_root, "dataset_map.json")
@@ -191,6 +192,18 @@ class PoseSequenceDataset(data.Dataset):
         Y_windows = np.nan_to_num(Y_windows, nan=0.0, posinf=0.0, neginf=0.0)
         Y_windows = np.clip(Y_windows, -2.0, 2.0)
         
+        # --- SUBSAMPLING OPTIMIZATION ---
+        # If max_windows is set, we prefer to sample indices HERE to avoid creating huge tensors.
+        if self.max_windows is not None and X.shape[0] > self.max_windows:
+            indices = np.random.choice(X.shape[0], self.max_windows, replace=False)
+            indices.sort() # Keep temporal order
+            
+            # Sample from the views
+            X = X[indices]
+            M = M[indices]
+            Y_windows = Y_windows[indices]
+        # --------------------------------
+
         # Return windowed data (sequence-to-sequence)
         # Mask is now all False (Valid), but we still pass it for API compatibility.
         return {
