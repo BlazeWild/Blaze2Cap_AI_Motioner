@@ -33,7 +33,7 @@ from blaze2cap.modeling.eval_motion import MotionEvaluator, evaluate_motion
 
 # --- Utilities ---
 from blaze2cap.utils.checkpoint import save_checkpoint, load_checkpoint, auto_resume
-from blaze2cap.utils.logging import setup_logging
+from Blaze2Cap.blaze2cap.utils.logging_ import setup_logging
 from blaze2cap.utils.train_utils import (
     CudaPreFetcher,
     set_random_seed,

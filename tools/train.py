@@ -29,7 +29,7 @@ from blaze2cap.modules.models import MotionTransformer
 from blaze2cap.data.data_loader import PoseSequenceDataset
 from blaze2cap.modeling.loss import MotionCorrectionLoss
 from blaze2cap.modeling.eval_motion import evaluate_motion, MotionEvaluator
-from blaze2cap.utils.logging import setup_logging
+from Blaze2Cap.blaze2cap.utils.logging_ import setup_logging
 from blaze2cap.utils.checkpoint import save_checkpoint, load_checkpoint, auto_resume
 from blaze2cap.utils.train_utils import CudaPreFetcher, set_random_seed, Timer
 from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
