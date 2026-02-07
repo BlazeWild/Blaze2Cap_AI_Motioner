@@ -125,11 +125,22 @@ class PoseSequenceDataset(data.Dataset):
             features_flat, shape=(F, N, D), strides=strides
         )
         
-        # 3. Masking Removal: The Valid Static Rule
-        # We now consider the padded history as VALID data to attend to.
-        # PyTorch `key_padding_mask` convention: False = Valid / Attend, True = Ignore.
-        # So we return a mask of all False.
-        M_masks = np.zeros((F, N), dtype=bool) 
+        # 3. Masking Strategy:
+        # We identify padded frames so the LOSS function can optionally ignore them.
+        # The MODEL should still attend to them (will handle this in train.py by passing None).
+        
+        # Create mask for full data: True = Padding, False = Real Data.
+        # padding_data has shape (N-1, ...) -> True
+        # raw_data has shape (F, ...) -> False
+        mask_padding = np.ones((N-1), dtype=bool)
+        mask_raw = np.zeros((F), dtype=bool)
+        full_mask = np.concatenate([mask_padding, mask_raw], axis=0) # (F + N - 1)
+        
+        # Window it
+        strides_mask = (full_mask.strides[0], full_mask.strides[0])
+        M_masks = np.lib.stride_tricks.as_strided(
+            full_mask, shape=(F, N), strides=strides_mask
+        )
         
         return X_windows, M_masks
 

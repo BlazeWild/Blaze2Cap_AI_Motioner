@@ -133,7 +133,9 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
         optimizer.zero_grad(set_to_none=True)
         
         with autocast('cuda', enabled=config["use_amp"] and device == "cuda"):
-            preds = model(src, key_padding_mask=mask)
+            # Passing key_padding_mask=None ensures the model attends to ALL history (including padding).
+            # The padding is valid static data essential for context.
+            preds = model(src, key_padding_mask=None)
             timer.tick("forward")
             
             # 3. Compute Loss
@@ -144,6 +146,9 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
             if not torch.isfinite(loss):
                 if device == "cuda":
                     torch.cuda.synchronize() # Only sync on error
+                # Log the error
+                import logging
+                logging.getLogger(__name__).warning(f"NaN/Inf loss detected at step {batch_idx}. Skipping.")
                 pbar.update(1)
                 pbar.set_postfix({"loss": "nan", "lr": f"{scheduler.get_last_lr()[0]:.2e}"})
                 if use_prefetcher:
@@ -253,7 +258,8 @@ def validate(model, loader, criterion, device, epoch, skeleton_config=None):
             mask = batch["mask"].to(device, non_blocking=True)
             tgt = batch["target"].to(device, non_blocking=True)
 
-            root_out, body_out = model(src, key_padding_mask=mask)
+            # Passing key_padding_mask=None ensures full historical context
+            root_out, body_out = model(src, key_padding_mask=None)
             pred_combined = torch.cat([root_out, body_out], dim=2)
 
             if tgt.dim() == 3 and tgt.shape[-1] == 132:
@@ -365,7 +371,45 @@ def main():
     )
     
     # 6. Loss
+    # Dynamic Skeleton Initialization (usedraw)
+    parents = None
+    offsets = None
+    
+    # Try to load raw skeleton from data
+    try:
+        logger.info("Extracting Dynamic Skeleton from training data...")
+        # Get first sample path
+        first_sample = train_dataset.samples[0]
+        # Construct path (logic copied from loader)
+        # dataset_root is CONFIG["data_root"]
+        input_path = os.path.join(CONFIG["data_root"], first_sample["source"])
+        logger.info(f"Loading skeleton from: {input_path}")
+        
+        # Load and extract
+        raw_data = np.load(input_path).astype(np.float32)
+        # Raw data: (F, 25, 7). Channels 0-3 are World Pos.
+        raw_pos = raw_data[:, :, 0:3]
+        
+        # Helper to get offsets
+        from blaze2cap.utils.skeleton_config import get_raw_skeleton, get_totalcapture_skeleton
+        offsets = get_raw_skeleton(raw_pos) # (22, 3) tensor
+        
+        # Get standard parents
+        base_config = get_totalcapture_skeleton()
+        parents = torch.tensor(base_config['parents'], dtype=torch.long)
+        
+        logger.info("Dynamic Skeleton loaded successfully.")
+        logger.info(f"Bone Offsets Mean Norm: {torch.norm(offsets, dim=1).mean():.4f} m")
+        
+    except Exception as e:
+        logger.error(f"Failed to load dynamic skeleton: {e}")
+        logger.warning("Falling back to static skeleton config.")
+        parents = None
+        offsets = None
+
     criterion = MotionCorrectionLoss(
+        parents=parents,
+        offsets=offsets,
         lambda_root_vel=CONFIG["lambda_root_vel"],
         lambda_root_rot=CONFIG["lambda_root_rot"],
         lambda_pose_rot=CONFIG["lambda_pose_rot"],
@@ -415,7 +459,17 @@ def main():
         logger.debug(f"Timing:\n{train_metrics['time_stats']}")
         
         # Validate
-        val_metrics = validate(model, val_loader, criterion, device, epoch)
+        # Validate
+        # Construct skeleton config for evaluator
+        val_skel_config = None
+        if parents is not None and offsets is not None:
+             val_skel_config = {
+                 'parents': parents,
+                 'offsets': offsets,
+                 'joint_names': get_totalcapture_skeleton()['joint_names']
+             }
+
+        val_metrics = validate(model, val_loader, criterion, device, epoch, skeleton_config=val_skel_config)
         mpjpe = val_metrics["MPJPE"]
         mare = val_metrics["MARE"]
         

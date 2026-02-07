@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.widgets import Slider
 
+from .blaze2cap.modules.models import MotionTransformer
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from blaze2cap.modules.models import MotionTransformer
@@ -111,24 +113,34 @@ def rotation_6d_to_matrix(d6):
 
 
 def forward_kinematics(gt_6d, offsets, parents):
-    """Perform FK to get 3D positions"""
+    """Perform FK to get 3D positions - using skeleton config directly, no flips or rotations"""
     num_joints = 22
     positions = np.zeros((num_joints, 3))
     rotations = np.zeros((num_joints, 3, 3))
     
+    # Root joint (pelvis) - absolute position from delta accumulation
     rotations[0] = np.eye(3)
+    positions[0] = gt_6d[0, 0:3]
     
-    for j in range(num_joints):
-        if j == 0:
-            positions[j] = gt_6d[j, 0:3]
-        elif j == 1:
+    for j in range(1, num_joints):
+        parent_idx = parents[j]
+        
+        if j == 1:
+            # Global root rotation (accumulated)
             rotations[j] = rotation_6d_to_matrix(gt_6d[j])
-            positions[j] = positions[parents[j]]
+            positions[j] = positions[parent_idx]  # Same position as parent
         else:
-            parent_idx = parents[j]
+            # Local rotation relative to parent
             local_rot = rotation_6d_to_matrix(gt_6d[j])
             rotations[j] = rotations[parent_idx] @ local_rot
-            offset = offsets[j].numpy()
+            
+            # Get offset from skeleton config
+            if isinstance(offsets[j], torch.Tensor):
+                offset = offsets[j].numpy()
+            else:
+                offset = np.array(offsets[j])
+            
+            # Apply parent rotation to offset and add to parent position
             positions[j] = positions[parent_idx] + rotations[parent_idx] @ offset
     
     return positions
@@ -137,8 +149,8 @@ def forward_kinematics(gt_6d, offsets, parents):
 def main():
     # Configuration
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    checkpoint_path = os.path.join(script_dir, "checkpoints", "checkpoint_epoch29.pth")
-    input_path = os.path.join(script_dir, "..", "training_dataset_both_in_out", "blaze_augmented", "S1", "acting1", "cam1", "blaze_S1_acting1_cam1_seg0_s1_o0.npy")
+    checkpoint_path = os.path.join(script_dir, "checkpoints", "checkpoint_epoch57.pth")
+    input_path = os.path.join(script_dir, "..", "training_dataset_both_in_out", "blaze_augmented", "S3", "acting1", "cam1", "blaze_S3_acting1_cam1_seg0_s2_o0.npy")
     window_size = 60
     batch_size = 8
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -205,7 +217,7 @@ def main():
     print(f"  Sample root[100,1]: {root_pred[100, 1]}")
     print()
     
-    # Accumulate root motion (deltas -> absolute)
+    # Accumulate root motion (deltas -> absolute) - CRITICAL: Follow fk_all_with_pos_delta.py logic
     print("Accumulating root motion (position + rotation deltas)...")
     accumulated_predictions = predictions.copy()
     
@@ -214,12 +226,22 @@ def main():
     
     nan_frames = 0
     for i in range(len(predictions)):
-        # Joint 0: Position delta -> accumulate
-        delta_pos = predictions[i, 0, 0:3]
+        if i == 0:
+            # Force identity on frame 0
+            accumulated_root_pos = np.zeros(3)
+            accumulated_root_rot = np.eye(3)
+            accumulated_predictions[i, 0, 0:3] = accumulated_root_pos
+            accumulated_predictions[i, 1, 0:3] = accumulated_root_rot[:, 0]
+            accumulated_predictions[i, 1, 3:6] = accumulated_root_rot[:, 1]
+            continue
+
+        # Joint 0: Position delta -> rotate by current root, then add
+        v_local = predictions[i, 0, 0:3]
         
         # Only accumulate if valid
-        if not (np.any(np.isnan(delta_pos)) or np.any(np.isinf(delta_pos))):
-            accumulated_root_pos += delta_pos
+        if not (np.any(np.isnan(v_local)) or np.any(np.isinf(v_local))):
+            # CRITICAL: curr_root_pos = curr_root_pos + (curr_root_rot @ v_local)
+            accumulated_root_pos = accumulated_root_pos + (accumulated_root_rot @ v_local)
         
         accumulated_predictions[i, 0, 0:3] = accumulated_root_pos
         
@@ -233,7 +255,7 @@ def main():
                 
                 # Check if rotation matrix is valid
                 if not (np.any(np.isnan(delta_rot_mat)) or np.any(np.isinf(delta_rot_mat))):
-                    # Test if multiplication will cause NaN
+                    # CRITICAL: curr_root_rot = curr_root_rot @ R_delta
                     test_rot = accumulated_root_rot @ delta_rot_mat
                     if not (np.any(np.isnan(test_rot)) or np.any(np.isinf(test_rot))):
                         accumulated_root_rot = test_rot
@@ -246,7 +268,7 @@ def main():
         else:
             nan_frames += 1
         
-        # Convert back to 6D (use accumulated rotation - always use current accumulated, even if we skipped this frame)
+        # Convert back to 6D
         accumulated_predictions[i, 1, 0:3] = accumulated_root_rot[:, 0]
         accumulated_predictions[i, 1, 3:6] = accumulated_root_rot[:, 1]
     
@@ -318,26 +340,22 @@ def main():
         
         fig.canvas.draw_idle()
     
-    # Set dynamic axis limits based on actual motion range
+    # Set fixed axis limits to -2, 2 for all axes (same scale)
     ax.set_xlabel('X (meters)', fontsize=12)
     ax.set_ylabel('Y (meters)', fontsize=12)
     ax.set_zlabel('Z (meters)', fontsize=12)
     
-    # Calculate bounds from all positions
+    # Fixed limits: -2 to 2 for all axes
+    ax.set_xlim(-2, 2)
+    ax.set_ylim(-2, 2)
+    ax.set_zlim(-2, 2)
+    
+    # Calculate actual motion range for debugging
     all_x = all_positions[:, :, 0].flatten()
     all_y = all_positions[:, :, 1].flatten()
     all_z = all_positions[:, :, 2].flatten()
     
-    padding = 0.5
-    x_min, x_max = all_x.min() - padding, all_x.max() + padding
-    y_min, y_max = all_y.min() - padding, all_y.max() + padding
-    z_min, z_max = all_z.min() - padding, all_z.max() + padding
-    
-    ax.set_xlim(x_min, x_max)
-    ax.set_ylim(y_min, y_max)
-    ax.set_zlim(z_min, z_max)
-    
-    print(f"Motion range: X[{x_min:.2f},{x_max:.2f}] Y[{y_min:.2f},{y_max:.2f}] Z[{z_min:.2f},{z_max:.2f}]")
+    print(f"Motion range: X[{all_x.min():.2f},{all_x.max():.2f}] Y[{all_y.min():.2f},{all_y.max():.2f}] Z[{all_z.min():.2f},{all_z.max():.2f}]")
     print()
     
     # Initial plot

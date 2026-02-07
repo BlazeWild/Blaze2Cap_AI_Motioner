@@ -1,0 +1,8 @@
+--- Testing MotionCorrectionLoss for NaNs ---
+Loss value: 0.0
+SUCCESS: Loss is finite.
+
+--- Testing Dynamic Skeleton Extraction ---
+Offsets shape: torch.Size([22, 3])
+Mean bone length: 0.1801244020462036
+SUCCESS: Offsets extracted.

@@ -22,6 +22,12 @@ class MotionEvaluator:
             bone_lengths (torch.Tensor): Tensor of bone lengths [25, 3] or [25, 1].
         """
         self.parents = skeleton_parents
+        # Ensure parents is a list or tensor of ints
+        if isinstance(self.parents, torch.Tensor):
+            self.parents = self.parents.cpu().numpy().tolist()
+        elif isinstance(self.parents, np.ndarray):
+            self.parents = self.parents.tolist()
+            
         self.bone_lengths = bone_lengths
         self.results = {}
 
@@ -60,9 +66,9 @@ class MotionEvaluator:
     def _cont6d_to_mat(self, d6):
         """Standard 6D -> 3x3 Matrix conversion"""
         a1, a2 = d6[..., :3], d6[..., 3:]
-        b1 = torch.nn.functional.normalize(a1, dim=-1)
+        b1 = torch.nn.functional.normalize(a1, dim=-1, eps=1e-6)
         b2 = a2 - (b1 * torch.sum(b1 * a2, dim=-1, keepdim=True))
-        b2 = torch.nn.functional.normalize(b2, dim=-1)
+        b2 = torch.nn.functional.normalize(b2, dim=-1, eps=1e-6)
         b3 = torch.cross(b1, b2, dim=-1)
         return torch.stack((b1, b2, b3), dim=-1)
 
@@ -90,7 +96,11 @@ class MotionEvaluator:
         
         # Iterate Body Joints (1 to 21)
         for i in range(1, 22):
-            parent_idx = self.parents[i]
+            if isinstance(self.parents, torch.Tensor):
+                parent_idx = self.parents[i].item()
+            else:
+                parent_idx = self.parents[i]
+            
             offset = self.bone_lengths[i].view(1, 1, 3, 1).to(body_rot_6d.device) # (1, 1, 3, 1)
             
             # Get Parent Global Transforms

@@ -43,6 +43,8 @@ class MotionCorrectionLoss(LossBase):
     """
     def __init__(self, 
                  skeleton_config: Optional[Dict] = None,
+                 parents: Optional[torch.Tensor] = None,
+                 offsets: Optional[torch.Tensor] = None,
                  lambda_root_vel: float = 1.0,
                  lambda_root_rot: float = 1.0,
                  lambda_pose_rot: float = 1.0, # Standard priority
@@ -62,19 +64,23 @@ class MotionCorrectionLoss(LossBase):
         }
 
         # Skeleton Config for FK
-        if skeleton_config is None:
-            skeleton_config = get_totalcapture_skeleton()
-            
-        # Register buffers for FK (persistent, not params)
-        self.register_buffer('parents', torch.tensor(skeleton_config['parents'], dtype=torch.long))
-        self.register_buffer('offsets', skeleton_config['offsets']) # (22, 3)
+        if parents is not None and offsets is not None:
+             # Use provided dynamic skeleton
+             self.register_buffer('parents', parents.long())
+             self.register_buffer('offsets', offsets.float())
+        else:
+            # Fallback to static
+            if skeleton_config is None:
+                skeleton_config = get_totalcapture_skeleton()
+            self.register_buffer('parents', torch.tensor(skeleton_config['parents'], dtype=torch.long))
+            self.register_buffer('offsets', skeleton_config['offsets']) # (22, 3)
 
     def _cont6d_to_mat(self, d6):
         """Standard 6D -> 3x3 Matrix conversion"""
         a1, a2 = d6[..., :3], d6[..., 3:]
-        b1 = F.normalize(a1, dim=-1)
+        b1 = F.normalize(a1, dim=-1, eps=1e-6)
         b2 = a2 - (b1 * torch.sum(b1 * a2, dim=-1, keepdim=True))
-        b2 = F.normalize(b2, dim=-1)
+        b2 = F.normalize(b2, dim=-1, eps=1e-6)
         b3 = torch.cross(b1, b2, dim=-1)
         return torch.stack((b1, b2, b3), dim=-1)
 

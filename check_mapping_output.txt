@@ -1,0 +1,34 @@
+--- MODEL SKELETON (22 Joints) ---
+IDX 0: Hips_pos (Parent -1: None)
+IDX 1: Hips_rot (Parent 0: Hips_pos)
+IDX 2: Spine (Parent 1: Hips_rot)
+IDX 3: Spine1 (Parent 2: Spine)
+IDX 4: Spine2 (Parent 3: Spine1)
+IDX 5: Spine3 (Parent 4: Spine2)
+IDX 6: Neck (Parent 5: Spine3)
+IDX 7: Head (Parent 6: Neck)
+IDX 8: RightShoulder (Parent 5: Spine3)
+IDX 9: RightArm (Parent 8: RightShoulder)
+IDX 10: RightForeArm (Parent 9: RightArm)
+IDX 11: RightHand (Parent 10: RightForeArm)
+IDX 12: LeftShoulder (Parent 5: Spine3)
+IDX 13: LeftArm (Parent 12: LeftShoulder)
+IDX 14: LeftForeArm (Parent 13: LeftArm)
+IDX 15: LeftHand (Parent 14: LeftForeArm)
+IDX 16: RightUpLeg (Parent 1: Hips_rot)
+IDX 17: RightLeg (Parent 16: RightUpLeg)
+IDX 18: RightFoot (Parent 17: RightLeg)
+IDX 19: LeftUpLeg (Parent 1: Hips_rot)
+IDX 20: LeftLeg (Parent 19: LeftUpLeg)
+IDX 21: LeftFoot (Parent 20: LeftLeg)
+
+--- INPUT DATA HIERARCHY (25 Joints) ---
+
+Chains:
+Root 0: 0
+Root 1: 1
+Root 2: 2
+Root 3: 3[5[7[9, 11, 13]]]
+Root 4: 4[6[8[10, 12, 14]]]
+Root 15: 15[17[19[21, 23]]]
+Root 16: 16[18[20[22, 24]]]
