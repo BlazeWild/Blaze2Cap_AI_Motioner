@@ -17,8 +17,39 @@ class PoseSequenceDataset(data.Dataset):
         with open(json_path, 'r') as f:
             full_data = json.load(f)
             
-        self.samples = [item for item in full_data if item.get(f"split_{split}", False)]
-        print(f"[{split.upper()}] Loaded {len(self.samples)} samples.")
+        # Filter samples
+        self.samples = []
+        print(f"[{split.upper()}] Scanning dataset for valid samples...")
+        
+        candidates = [item for item in full_data if item.get(f"split_{split}", False)]
+        
+        for item in candidates:
+            if self._is_valid(item):
+                self.samples.append(item)
+                
+        print(f"[{split.upper()}] Loaded {len(self.samples)} valid samples (filtered {len(candidates) - len(self.samples)} invalid).")
+
+    def _is_valid(self, item):
+        src_path = os.path.join(self.dataset_root, item["source"])
+        tgt_path = os.path.join(self.dataset_root, item["target"])
+        
+        if not os.path.exists(src_path) or not os.path.exists(tgt_path):
+            return False
+            
+        try:
+            # Quick check for empty files
+            # mmap_mode='r' avoids reading the whole file, just reads header
+            src_data = np.load(src_path, mmap_mode='r')
+            if src_data.shape[0] == 0:
+                return False
+                
+            tgt_data = np.load(tgt_path, mmap_mode='r')
+            if tgt_data.shape[0] == 0:
+                return False
+                
+            return True
+        except Exception:
+            return False
 
     def __len__(self):
         return len(self.samples)

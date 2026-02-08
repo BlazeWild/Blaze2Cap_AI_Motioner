@@ -177,9 +177,11 @@ class MotionTransformer(nn.Module):
         self.head_body = nn.Linear(d_model, 120)
 
     def forward(self, x, key_padding_mask=None):
+        # Extract dimensions
+        B, S = x.shape[0], x.shape[1]
+
         # x shape: [Batch, Seq, 27, 18]
         if x.dim() == 4:
-            B, S, J, F = x.shape
             x = x.view(B, S, -1) # Flatten -> [B, S, 486]
 
         # 1. Project & Encode

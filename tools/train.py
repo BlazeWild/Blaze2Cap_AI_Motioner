@@ -314,7 +314,7 @@ def main():
     )
     val_loader = DataLoader(
         val_dataset, 
-        batch_size=4, # Reduced val batch size to prevent OOM (since frames aren't subsampled)
+        batch_size=4, # Use 8 as requested by user - fits in memory while keeping full sequences
         shuffle=False, 
         num_workers=CONFIG["num_workers"],
         pin_memory=True,
