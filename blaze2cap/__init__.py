@@ -23,7 +23,7 @@ from blaze2cap.modules.models import (
 )
 
 # --- Data ---
-from blaze2cap.data.data_loader import PoseSequenceDataset
+from blaze2cap.modules.data_loader import PoseSequenceDataset
 
 # --- Loss ---
 from blaze2cap.modeling.loss import MotionCorrectionLoss, LossBase

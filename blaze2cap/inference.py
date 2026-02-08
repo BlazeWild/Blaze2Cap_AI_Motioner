@@ -24,7 +24,7 @@ from blaze2cap.utils.skeleton_config import get_raw_skeleton, get_totalcapture_s
 # ==========================================
 # CONFIGURATION
 # ==========================================
-CHECKPOINT_PATH = '/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/checkpoint_epoch57.pth' # Update to latest if needed
+CHECKPOINT_PATH = '/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/checkpoint_epoch16.pth' # Update to latest if needed
 TEST_FILE_PATH = '/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/training_dataset_both_in_out/blaze_augmented/S1/acting1/cam1/blaze_S1_acting1_cam1_seg0_s1_o0.npy'
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -313,55 +313,32 @@ def main():
     predictions = np.concatenate(predictions, axis=0)
     print(f"Prediction Shape: {predictions.shape}")
 
-    # 5. Decode & Plot
-    print(f"Decoding motion using Extracted Skeleton...")
+    # 5. Decode for verification (but mainly Save)
+    print(f"Decoding motion for sanity check...")
     g_pos, g_rot = decode_motion(predictions, OFFSETS)
     
-    print("Launching Plotter...")
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, projection='3d')
-    plt.subplots_adjust(bottom=0.2)
-    lines = [ax.plot([],[],[], 'b-o', ms=4, mec='k')[0] for _ in range(22)]
-    
-    # Limits
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(-1, 1)
-    ax.set_zlim(-1, 1)
-    
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    ax.view_init(elev=20, azim=-45)
-
-    def update(val):
-        f = int(slider.val)
-        if f >= len(g_pos): f = len(g_pos) - 1
+    # --- SAVE OUTPUT ---
+    OUTPUT_DIR = '/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/test/inference_test'
+    if not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
         
-        # Use valid offsets
-        xyz = compute_fk(g_pos[f], g_rot[f], OFFSETS)
-        
-        for i, line in enumerate(lines):
-            c = i+1
-            if c >= 22: continue
-            p = PARENTS_22[c]
-            line.set_data_3d(
-                [xyz[p,0], xyz[c,0]], 
-                [xyz[p,1], xyz[c,1]], 
-                [xyz[p,2], xyz[c,2]]
-            )
-        
-        # Optional: Center view on root
-        # cx, cy, cz = xyz[0]
-        # ax.set_xlim(cx-1, cx+1) ...
-
-        fig.canvas.draw_idle()
-
-    slider = Slider(plt.axes([0.2, 0.05, 0.6, 0.03]), 'Frame', 0, len(g_pos)-1, valinit=0, valfmt='%d')
-    slider.on_changed(update)
+    # Construct filename
+    input_name = os.path.basename(TEST_FILE_PATH).replace('.npy', '')
+    output_path = os.path.join(OUTPUT_DIR, f"pred_{input_name}.npy")
     
-    print("Plotting. Close window to finish.")
-    plt.show()
+    # Save the 6D predictions (Direct Model Output)
+    np.save(output_path, predictions)
+    print(f"\n✅ Saved Predictions to: {output_path}")
+    print(f"Shape: {predictions.shape}")
+    
+    # Optional: Save Reconstructed Positions if needed
+    # output_pos_path = os.path.join(OUTPUT_DIR, f"pos_{input_name}.npy")
+    # np.save(output_pos_path, g_pos)
 
+    # Plotting disabled as per request
+    print("Skipping Plotting.")
+    # plt.show()
+    
 # --- ENTRY POINT ---
 if __name__ == "__main__":
     main()

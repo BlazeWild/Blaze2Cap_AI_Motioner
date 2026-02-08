@@ -14,7 +14,7 @@ from blaze2cap.modules.models import (
 
 )
 
-from blaze2cap.modules.dataset import PoseSequenceDataset, process_blazepose_frames
+from blaze2cap.modules.data_loader import PoseSequenceDataset, process_blazepose_frames
 
 __all__ = [
     "MotionTransformer",

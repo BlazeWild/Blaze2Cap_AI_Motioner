@@ -100,19 +100,65 @@ blaze_S1_acting1_cam3_seg0_s2_o1.npy
 
 **25 Keypoints (indices 0-24):**
 ```
-0: nose
-7: left_eye_inner,  8: left_eye_outer
-11: right_eye_inner, 12: right_eye_outer
-13: left_ear,  14: right_ear
-15: left_hip,  16: right_hip
-17: left_knee, 18: right_knee
-19: left_ankle, 20: right_ankle
-21: left_heel, 22: right_heel
-23: left_foot_index, 24: right_foot_index
-25: left_shoulder, 26: right_shoulder
-27: left_elbow, 28: right_elbow
-29: left_wrist, 30: right_wrist
-31: left_pinky, 32: right_pinky
+| New Index | Keypoint Name | Original Index |
+| :--- | :--- | :--- |
+| 0 | Nose | 0 |
+| 1 | Left_ear | 7 |
+| 2 | Right_ear | 8 |
+| 3 | Left_shoulder | 11 |
+| 4 | Right_shoulder | 12 |
+| 5 | Left_elbow | 13 |
+| 6 | Right_elbow | 14 |
+| 7 | Left_wrist | 15 |
+| 8 | Right_wrist | 16 |
+| 9 | Left_pinky | 17 |
+| 10 | Right_pinky | 18 |
+| 11 | Left_index | 19 |
+| 12 | Right_index | 20 |
+| 13 | Left_thumb | 21 |
+| 14 | Right_thumb | 22 |
+| 15 | Left_hip | 23 |
+| 16 | Right_hip | 24 |
+| 17 | Left_knee | 25 |
+| 18 | Right_knee | 26 |
+| 19 | Left_ankle | 27 |
+| 20 | Right_ankle | 28 |
+| 21 | Left_heel | 29 |
+| 22 | Right_heel | 30 |
+| 23 | Left_foot_index | 31 |
+| 24 | Right_foot_index | 32 |
+
+
+after cleaning,27 ones are:
+Index,Name,Name of Child,Name of Parent
+0,Nose,"Left_ear, Right_ear",Neck
+1,Left_ear,None,Nose
+2,Right_ear,None,Nose
+3,Left_shoulder,Left_elbow,Neck
+4,Right_shoulder,Right_elbow,Neck
+5,Left_elbow,Left_wrist,Left_shoulder
+6,Right_elbow,Right_wrist,Right_shoulder
+7,Left_wrist,"Left_pinky, Left_index, Left_thumb",Left_elbow
+8,Right_wrist,"Right_pinky, Right_index, Right_thumb",Right_elbow
+9,Left_pinky,None,Left_wrist
+10,Right_pinky,None,Right_wrist
+11,Left_index,None,Left_wrist
+12,Right_index,None,Right_wrist
+13,Left_thumb,None,Left_wrist
+14,Right_thumb,None,Right_wrist
+15,Left_hip,Left_knee,MidHip
+16,Right_hip,Right_knee,MidHip
+17,Left_knee,Left_ankle,Left_hip
+18,Right_knee,Right_ankle,Right_hip
+19,Left_ankle,"Left_heel, Left_foot_index",Left_knee
+20,Right_ankle,"Right_heel, Right_foot_index",Right_knee
+21,Left_heel,None,Left_ankle
+22,Right_heel,None,Right_ankle
+23,Left_foot_index,None,Left_ankle
+24,Right_foot_index,None,Right_ankle
+25,Neck,"Nose, Left_shoulder, Right_shoulder",MidHip
+26,MidHip,"Neck, Left_hip, Right_hip",None (Root)
+
 ```
 
 **7 Channels (per keypoint):**

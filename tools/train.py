@@ -27,7 +27,7 @@ from collections import defaultdict
 
 # --- Blaze2Cap Modules (via __init__.py exports) ---
 from blaze2cap.modules.models import MotionTransformer
-from blaze2cap.data.data_loader import PoseSequenceDataset
+from blaze2cap.modules.data_loader import PoseSequenceDataset
 from blaze2cap.modeling.loss import MotionCorrectionLoss
 from blaze2cap.modeling.eval_motion import evaluate_motion, MotionEvaluator
 from blaze2cap.utils.logging_ import setup_logging
@@ -49,7 +49,7 @@ CONFIG = {
     "log_dir": "./logs",
     
     # Model Hyperparameters (unchanged)
-    "num_joints": 25,
+    "num_joints": 27,
     "input_feats": 18,
     "d_model": 256,
     "num_layers": 4,
@@ -69,7 +69,7 @@ CONFIG = {
     "max_windows_per_sample": 64,   # Number of WINDOWS to sample per file
     "lr": 1e-4,
     "weight_decay": 0.01,
-    "epochs": 100,
+    "epochs": 150,
     "window_size": 64,
     "warmup_pct": 0.1,
     
@@ -77,7 +77,7 @@ CONFIG = {
     "lambda_root_vel": 1.0,
     "lambda_root_rot": 1.0,
     "lambda_pose_rot": 1.0,
-    "lambda_pose_pos": 2.0,
+    "lambda_pose_pos": 4.0,
     "lambda_smooth": 10.0,
     "lambda_accel": 20.0,
     
@@ -299,7 +299,7 @@ def main():
     # 2. Data
     logger.info("Initializing Datasets...")
     train_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], split="train", max_windows=CONFIG.get("max_windows_per_sample"))
-    val_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], split="test", max_windows=None)
+    val_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], split="val", max_windows=None)
     
     train_loader = DataLoader(
         train_dataset, 
@@ -371,41 +371,13 @@ def main():
     )
     
     # 6. Loss
-    # Dynamic Skeleton Initialization (usedraw)
-    parents = None
-    offsets = None
+    # Use static skeleton config from utils
+    # Removed fragile dynamic extraction
+    skel_config = get_totalcapture_skeleton()
+    parents = torch.tensor(skel_config['parents'], dtype=torch.long)
+    offsets = skel_config['offsets'] # Already a tensor
     
-    # Try to load raw skeleton from data
-    try:
-        logger.info("Extracting Dynamic Skeleton from training data...")
-        # Get first sample path
-        first_sample = train_dataset.samples[0]
-        # Construct path (logic copied from loader)
-        # dataset_root is CONFIG["data_root"]
-        input_path = os.path.join(CONFIG["data_root"], first_sample["source"])
-        logger.info(f"Loading skeleton from: {input_path}")
-        
-        # Load and extract
-        raw_data = np.load(input_path).astype(np.float32)
-        # Raw data: (F, 25, 7). Channels 0-3 are World Pos.
-        raw_pos = raw_data[:, :, 0:3]
-        
-        # Helper to get offsets
-        from blaze2cap.utils.skeleton_config import get_raw_skeleton, get_totalcapture_skeleton
-        offsets = get_raw_skeleton(raw_pos) # (22, 3) tensor
-        
-        # Get standard parents
-        base_config = get_totalcapture_skeleton()
-        parents = torch.tensor(base_config['parents'], dtype=torch.long)
-        
-        logger.info("Dynamic Skeleton loaded successfully.")
-        logger.info(f"Bone Offsets Mean Norm: {torch.norm(offsets, dim=1).mean():.4f} m")
-        
-    except Exception as e:
-        logger.error(f"Failed to load dynamic skeleton: {e}")
-        logger.warning("Falling back to static skeleton config.")
-        parents = None
-        offsets = None
+    logger.info("Static Skeleton (TotalCapture) loaded successfully.")
 
     criterion = MotionCorrectionLoss(
         parents=parents,

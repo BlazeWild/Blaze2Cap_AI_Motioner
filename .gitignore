@@ -55,6 +55,8 @@ logs/
 blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blaze_augmented/
 blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gt_augmented/
 blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazepose_augmented/
+blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazefinal/
+blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gtfinal/
 
 # OS
 Thumbs.db

@@ -48,7 +48,7 @@ class MotionCorrectionLoss(LossBase):
                  lambda_root_vel: float = 1.0,
                  lambda_root_rot: float = 1.0,
                  lambda_pose_rot: float = 1.0, # Standard priority
-                 lambda_pose_pos: float = 2.0, # Boosted: Structure accuracy is critical
+                 lambda_pose_pos: float = 4.0, # Boosted: Structure accuracy is critical
                  lambda_smooth: float = 10.0,  # Boosted 10x
                  lambda_accel: float = 20.0):  # Boosted 20x
         super().__init__()
