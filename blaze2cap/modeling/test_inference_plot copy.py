@@ -1,18 +1,18 @@
+
 """
-GT Motion Visualizer (Fixed Scale World)
-========================================
-Visualizes Ground Truth motion with:
-- Fixed Scale (-2m to +2m)
-- Fixed Floor (Z=0)
-- Global Trajectory Line
-- NO Camera Follow (Static World View)
+Inference & Visualization (Fixed Scale World)
+=============================================
+1. Loads a random BlazePose input file (.npy).
+2. Preprocesses it (Virtual Joints + Deltas + Windowing).
+3. Runs the MotionTransformer model (loaded from checkpoint).
+4. Reconstructs global motion from model output.
+5. Visualizes result using Fixed Scale World plot.
 """
 
 import os
 import sys
 import random
 import glob
-# from cairo import Filter
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -22,20 +22,32 @@ from mpl_toolkits.mplot3d import Axes3D
 from pathlib import Path
 
 # --- Project Imports ---
-sys.path.append(str(Path(__file__).resolve().parents[2])) 
+# Add the root of the repo (Blaze2Cap) to sys.path
+repo_root = str(Path(__file__).resolve().parents[2])
+sys.path.append(repo_root)
+
 from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
+from blaze2cap.modules.models import MotionTransformer
+from blaze2cap.modules.pose_processing import process_blazepose_frames
 
 # --- Configuration ---
-DATASET_ROOT = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gt_augmented"
+# Path to input files (BlazePose Augmented)
+INPUT_DATASET_ROOT = os.path.join(repo_root, "../training_dataset_both_in_out/blaze_augmented")
+CHECKPOINT_FILE = os.path.join(repo_root, "checkpoints/milestone_epoch150.pth")
+WINDOW_SIZE = 64
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Filter Options
-FILTER_SUBJECT = "S3"
-FILTER_ACTION = "walking3"
-FILTER_CAM = "cam2"
+# # Filter Options for random file selection
+# FILTER_SUBJECT = "S1" # e.g., "S1"
+# FILTER_ACTION = "acting1"  # e.g., "acting1"
+# FILTER_CAM = "cam1"     # e.g., "cam1"
 
-# FILTER_SUBJECT = None
-# FILTER_ACTION = None
-# FILTER_CAM = None
+# Filter Options for random file selection
+FILTER_SUBJECT = None # e.g., "S1"
+FILTER_ACTION = None  # e.g., "acting1"
+FILTER_CAM = None     # e.g., "cam1"
+
+# --- 1. Helper Functions (Reconstruction) ---
 
 def cont6d_to_mat(d6):
     """Converts 6D rotation representation to 3x3 rotation matrix."""
@@ -58,6 +70,9 @@ def reconstruct_global_motion(data_npy, parents, offsets):
 
     # --- PART A: Reconstruct Root Trajectory ---
     # Velocity is often stored inverted or needs inversion depending on coordinate system
+    # NOTE: Model predicts translation delta directly.
+    # In test_fk_plot_withrm.py, it used: root_vel_local = data[:, 0, :3] * -1.0
+    # Let's keep consistency with the visualizer we are copying.
     root_vel_local = data[:, 0, :3] * -1.0 # [F, 3] Fix for reversed trajectory
     root_rot_delta_mat = cont6d_to_mat(data[:, 1, :]) # [F, 3, 3]
     
@@ -92,6 +107,8 @@ def reconstruct_global_motion(data_npy, parents, offsets):
         frame_global_rots = [root_orientations[f], root_orientations[f]]
         
         # Loop Body Joints (Indices 2 to 21)
+        # Note: offsets should move to device if we were doing this on GPU, 
+        # but here everything is CPU/Numpy for plotting.
         for i in range(2, 22):
             parent_idx = parents[i]
             offset = offsets[i].view(3)
@@ -111,31 +128,113 @@ def reconstruct_global_motion(data_npy, parents, offsets):
 
     return torch.stack(all_global_pos).numpy() # [F, 22, 3]
 
-def find_file():
+# --- 2. File & Model Management ---
+
+def find_input_file():
     subj = FILTER_SUBJECT if FILTER_SUBJECT else "*"
     act = FILTER_ACTION if FILTER_ACTION else "*"
     cam = FILTER_CAM if FILTER_CAM else "*"
-    pattern = os.path.join(DATASET_ROOT, subj, act, cam, "*.npy")
+    
+    # Check if path exists
+    if not os.path.exists(INPUT_DATASET_ROOT):
+        raise ValueError(f"Input dataset root not found: {INPUT_DATASET_ROOT}")
+
+    pattern = os.path.join(INPUT_DATASET_ROOT, subj, act, cam, "*.npy")
     files = glob.glob(pattern)
-    if not files: raise ValueError(f"No files: {pattern}")
+    if not files: 
+        # Fallback recursive search if directory structure is slightly different
+        pattern_rec = os.path.join(INPUT_DATASET_ROOT, "**", "*.npy")
+        files = glob.glob(pattern_rec, recursive=True)
+        
+    if not files: raise ValueError(f"No files found matching: {pattern}")
     return random.choice(files)
 
+def load_best_model():
+    # Load specific checkpoint
+    best_ckpt = CHECKPOINT_FILE
+    if not os.path.exists(best_ckpt):
+        raise ValueError(f"Checkpoint not found: {best_ckpt}")
+    
+    print(f"Loading checkpoint: {best_ckpt}")
+    
+    model = MotionTransformer(
+        num_joints=27, # Must match pose_processing.py (25 + 2 virtual)
+        input_feats=18, 
+        d_model=256, 
+        num_layers=4, 
+        n_head=4, 
+        d_ff=512, 
+        dropout=0.1,
+        max_len=512
+    ).to(DEVICE)
+    
+    state_dict = torch.load(best_ckpt, map_location=DEVICE)
+    if 'model' in state_dict: state_dict = state_dict['model']
+    
+    # Strip 'module.' prefix if present
+    state_dict = {k.replace('module.', ''): v for k, v in state_dict.items()}
+    
+    model.load_state_dict(state_dict)
+    model.eval()
+    return model
+
+# --- 3. Main Routine ---
+
 def main():
-    # 1. Setup
+    # A. Setup
     skel_cfg = get_totalcapture_skeleton()
     parents = skel_cfg['parents']
     offsets = skel_cfg['offsets']
     
-    filepath = find_file()
-    print(f"Loading: {filepath}")
-    raw_data = np.load(filepath)
+    # B. Load Input
+    filepath = find_input_file()
+    print(f"Input File: {filepath}")
     
-    positions = reconstruct_global_motion(raw_data, parents, offsets)
+    raw_input = np.load(filepath) # (F, 25, 7)
+    
+    # C. Preprocess
+    # process_blazepose_frames returns (F, Window, Features)
+    print("Preprocessing input...")
+    X_windows, _ = process_blazepose_frames(raw_input, window_size=WINDOW_SIZE)
+    
+    input_tensor = torch.from_numpy(X_windows).float().to(DEVICE)
+    
+    # D. Inference
+    print("Running inference...")
+    model = load_best_model()
+    
+    all_preds = []
+    BATCH_SIZE = 128
+    
+    with torch.no_grad():
+        for i in range(0, len(input_tensor), BATCH_SIZE):
+            batch = input_tensor[i : i+BATCH_SIZE]
+            
+            # Forward pass
+            root_out, body_out = model(batch)
+            
+            # Take last frame of window [B, -1, ...]
+            root_last = root_out[:, -1, :, :] # [B, 2, 6]
+            body_last = body_out[:, -1, :, :] # [B, 20, 6]
+            
+            # Combine to [B, 22, 6]
+            # root is joints 0-1, body is 2-21
+            combined = torch.cat([root_last, body_last], dim=1)
+            all_preds.append(combined.cpu())
+            
+    # Concatenate all batches
+    full_pred_6d = torch.cat(all_preds, dim=0).numpy() # [F, 22, 6]
+    print(f"Prediction Complete. Shape: {full_pred_6d.shape}")
+    
+    # E. Reconstruct 3D Positions
+    print("Reconstructing global motion...")
+    positions = reconstruct_global_motion(full_pred_6d, parents, offsets)
     num_frames = positions.shape[0]
-    
-    # 2. Plot Setup
+
+    # F. Visualization (Exact copy of visualizer logic)
+    print("Starting visualization...")
     fig = plt.figure(figsize=(12, 10))
-    fig.suptitle(f"File: {os.path.basename(filepath)}", fontsize=12)
+    fig.suptitle(f"Inference: {os.path.basename(filepath)}", fontsize=12)
     plt.subplots_adjust(bottom=0.2)
     
     ax = fig.add_subplot(111, projection='3d')
@@ -146,10 +245,9 @@ def main():
     traj_line, = ax.plot([], [], [], 'g--', lw=1)
     
     # --- STATIC AXIS LIMITS ---
-    # Lock the world view to 4x4 meters centered at origin
-    ax.set_xlim(-1.0, 1.0)
-    ax.set_ylim(-1.0, 1.0)
-    ax.set_zlim(-1, 1.0) # Z is Up (0 to 2m)
+    ax.set_xlim(-2.0, 2.0)
+    ax.set_ylim(-2.0, 2.0)
+    ax.set_zlim(-2.0, 2.0)
     
     ax.set_xlabel('X (Right)')
     ax.set_ylabel('Y (Forward)')

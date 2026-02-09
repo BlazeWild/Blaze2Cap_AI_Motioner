@@ -57,6 +57,8 @@ blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gt_augmented/
 blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazepose_augmented/
 blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazefinal/
 blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gtfinal/
+blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gtfinal.zip
+blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazefinal.zip
 
 # OS
 Thumbs.db

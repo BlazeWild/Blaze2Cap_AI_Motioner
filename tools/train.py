@@ -74,12 +74,25 @@ CONFIG = {
     "warmup_pct": 0.1,
     
     # Loss Weights
-    "lambda_root_vel": 1.0,
-    "lambda_root_rot": 1.0,
-    "lambda_pose_rot": 1.0,
-    "lambda_pose_pos": 4.0,
-    "lambda_smooth": 10.0,
-    "lambda_accel": 20.0,
+    # "lambda_root_vel": 1.0,
+    # "lambda_root_rot": 1.0,
+    # "lambda_pose_rot": 1.0,
+    # "lambda_pose_pos": 4.0,
+    # "lambda_smooth": 10.0,
+    # "lambda_accel": 20.0,
+
+    # Loss Weights - AGGRESSIVE RETUNING
+    "lambda_root_vel": 50.0,   # WAS 1.0. Needs huge boost to match Rotation scale.
+    "lambda_root_rot": 10.0,    # WAS 1.0. Facing direction is critical.
+    
+    "lambda_pose_rot": 2.0,     # Keep standard (Baseline)
+    
+    "lambda_pose_pos": 10.0,    # WAS 4.0. Boost MPJPE to force correct structure.
+    
+    # Turn OFF Smoothness for now. 
+    # If the structure is wrong, smoothing it just makes it "smoothly wrong".
+    "lambda_smooth": 0.0,       # WAS 10.0. 
+    "lambda_accel": 0.0,        # WAS 20.0.
     
     # System
     "seed": 42,
