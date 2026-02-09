@@ -33,7 +33,7 @@ from blaze2cap.modules.pose_processing import process_blazepose_frames
 # --- Configuration ---
 # Path to input files (BlazePose Augmented)
 INPUT_DATASET_ROOT = os.path.join(repo_root, "../training_dataset_both_in_out/blaze_augmented")
-CHECKPOINT_FILE = os.path.join(repo_root, "checkpoints/milestone_epoch150.pth")
+CHECKPOINT_FILE = os.path.join(repo_root, "checkpoints/checkpoint_epoch22.pth")
 WINDOW_SIZE = 64
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -73,8 +73,8 @@ def reconstruct_global_motion(data_npy, parents, offsets):
     # NOTE: Model predicts translation delta directly.
     # In test_fk_plot_withrm.py, it used: root_vel_local = data[:, 0, :3] * -1.0
     # Let's keep consistency with the visualizer we are copying.
-    root_vel_local = data[:, 0, :3] * 0.0 # Zero out root velocity for now
-    root_rot_delta_mat = torch.eye(3).view(1, 3, 3).expand(F_frames, -1, -1) # Fix root orientation
+    root_vel_local = data[:, 0, :3] * -1.0
+    root_rot_delta_mat = cont6d_to_mat(data[:, 1, :])
     
     curr_root_pos = torch.zeros(3)
     curr_root_rot = torch.eye(3)

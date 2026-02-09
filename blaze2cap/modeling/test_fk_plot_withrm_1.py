@@ -1,18 +1,15 @@
 """
-GT Motion Visualizer (Fixed Scale World)
-========================================
-Visualizes Ground Truth motion with:
-- Fixed Scale (-2m to +2m)
-- Fixed Floor (Z=0)
-- Global Trajectory Line
-- NO Camera Follow (Static World View)
+GT Motion Visualizer (Z-Up Pre-Transform + Rotation Info)
+=========================================================
+1. Loads Y-Down Data.
+2. Transforms everything to Z-Up immediately.
+3. Displays Orientation ONLY (Global + Delta) - Position removed.
 """
 
 import os
 import sys
 import random
 import glob
-# from cairo import Filter
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -20,6 +17,7 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 from mpl_toolkits.mplot3d import Axes3D
 from pathlib import Path
+import math
 
 # --- Project Imports ---
 sys.path.append(str(Path(__file__).resolve().parents[2])) 
@@ -28,14 +26,30 @@ from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
 # --- Configuration ---
 DATASET_ROOT = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gt_augmented"
 
-# Filter Options
 FILTER_SUBJECT = "S1"
 FILTER_ACTION = "acting1"
 FILTER_CAM = "cam1"
 
-# FILTER_SUBJECT = None
-# FILTER_ACTION = None
-# FILTER_CAM = None
+def rotation_matrix_to_euler(R):
+    """
+    Converts a 3x3 Rotation Matrix to Euler Angles (Roll, Pitch, Yaw).
+    Assumes Z-Up coordinate system (Yaw is around Z).
+    Returns (Roll, Pitch, Yaw) in degrees.
+    """
+    sy = math.sqrt(R[0, 0] * R[0, 0] + R[1, 0] * R[1, 0])
+    singular = sy < 1e-6
+
+    if not singular:
+        x = math.atan2(R[2, 1], R[2, 2])
+        y = math.atan2(-R[2, 0], sy)
+        z = math.atan2(R[1, 0], R[0, 0])
+    else:
+        x = math.atan2(-R[1, 2], R[1, 1])
+        y = math.atan2(-R[2, 0], sy)
+        z = 0
+
+    return np.degrees([x, y, z]) # Returns [Roll(X), Pitch(Y), Yaw(Z)]
+
 def cont6d_to_mat(d6):
     """Converts 6D rotation representation to 3x3 rotation matrix."""
     a1, a2 = d6[..., :3], d6[..., 3:]
@@ -48,6 +62,7 @@ def cont6d_to_mat(d6):
 def reconstruct_global_motion(data_npy, parents, offsets):
     """
     Applies Coordinate Transform FIRST, then calculates FK.
+    Returns: positions, global_rot_mats, delta_rot_mats
     """
     data = torch.from_numpy(data_npy).float()
     F_frames = data.shape[0]
@@ -58,68 +73,42 @@ def reconstruct_global_motion(data_npy, parents, offsets):
     # ==========================================
     # 1. DEFINE COORDINATE TRANSFORM (Y-Down -> Z-Up)
     # ==========================================
-    # We want:
-    # X_new = X_old
-    # Y_new = Z_old  (Forward)
-    # Z_new = -Y_old (Up)
-    
     COORD_TRANSFORM = torch.tensor([
-        [1.0, 0.0, 0.0],  # X -> X
+        [1.0, 0.0, 0.0],   # X -> X
         [0.0, 0.0, -1.0],  # Y -> Z
-        [0.0, -1.0, 0.0]  # Z -> -Y
+        [0.0, -1.0, 0.0]   # Z -> -Y
     ]).float()
     
-    # Inverse is needed for rotation similarity transform (M @ R @ M.T)
     COORD_TRANSFORM_T = COORD_TRANSFORM.T
 
     # ==========================================
-    # 2. TRANSFORM INPUTS (BEFORE CALCULATION)
+    # 2. TRANSFORM INPUTS
     # ==========================================
     
-    # A. Transform Offsets (Bone Lengths)
-    # [22, 3] -> [22, 3]
-    offsets = torch.matmul(offsets, COORD_TRANSFORM_T) # Vector mult is v @ M.T
+    # A. Offsets
+    offsets = torch.matmul(offsets, COORD_TRANSFORM_T)
 
-    # B. Transform Root Velocity
+    # B. Root Velocity
     root_vel_local = data[:, 0, :3] * -1.0 
-    # [F, 3] -> [F, 3]
     root_vel_local = torch.matmul(root_vel_local, COORD_TRANSFORM_T)
 
-    # C. Transform Rotations (Change of Basis)
-    # We need to transform EVERY rotation matrix in the file.
-    # Formula: R_new = M @ R_old @ M.T
-    
-    # 1. Get all rotations (Root + Body)
+    # C. Rotations
     all_rot_data = data[:, 1:, :] # [F, 21, 6]
     all_rot_mats = cont6d_to_mat(all_rot_data) # [F, 21, 3, 3]
     
-    # 2. Apply Transform
-    # Expand M for broadcasting: [1, 1, 3, 3]
+    # Apply Change of Basis: M @ R @ MT
     M = COORD_TRANSFORM.view(1, 1, 3, 3)
     MT = COORD_TRANSFORM_T.view(1, 1, 3, 3)
-    
-    # Perform M @ R @ MT
     all_rot_mats = torch.matmul(M, torch.matmul(all_rot_mats, MT))
     
-    # Split back into Root Rot and Body Rots
-    root_rot_delta_mat = all_rot_mats[:, 0] # Index 0 is Root
+    root_rot_delta_mat = all_rot_mats[:, 0] # Index 0 is Root Delta
     body_rot_mats = all_rot_mats[:, 1:]     # Index 1..20 is Body
 
     # ==========================================
-    # 3. YOUR CUSTOM MATRICES (Optional Tweaks)
-    # ==========================================
-    # If you still want to flip the path or pose additionally, do it here.
-    # Currently set to Identity since the COORD_TRANSFORM handles the axes.
-    
-    # ... (Add extra transforms here if needed) ...
-
-    # ==========================================
-    # 4. FK ACCUMULATION LOOP (Now in Z-Up Space)
+    # 3. FK ACCUMULATION LOOP
     # ==========================================
     curr_root_pos = torch.zeros(3)
-    curr_root_rot = torch.eye(3) # Identity start
-    # Apply initial coordinate transform to root rotation if needed?
-    # Usually starting at Identity in world space is fine.
+    curr_root_rot = torch.eye(3) 
     
     root_positions = []
     root_orientations = []
@@ -139,7 +128,7 @@ def reconstruct_global_motion(data_npy, parents, offsets):
     root_orientations = torch.stack(root_orientations) 
 
     # ==========================================
-    # 5. BODY LOOP
+    # 4. BODY LOOP
     # ==========================================
     all_global_pos = []
     
@@ -149,11 +138,11 @@ def reconstruct_global_motion(data_npy, parents, offsets):
         
         for i in range(2, 22):
             parent_idx = parents[i]
-            offset = offsets[i] # Already Z-Up
+            offset = offsets[i] 
             
             parent_R = frame_global_rots[parent_idx]
             parent_P = frame_global_pos[parent_idx]
-            local_R = body_rot_mats[f, i-2] # Already Z-Up
+            local_R = body_rot_mats[f, i-2] 
             
             global_R = torch.matmul(parent_R, local_R)
             rotated_offset = torch.matmul(parent_R, offset)
@@ -164,7 +153,10 @@ def reconstruct_global_motion(data_npy, parents, offsets):
             
         all_global_pos.append(torch.stack(frame_global_pos))
 
-    return torch.stack(all_global_pos).numpy()
+    # Return Pos, Global Rotations, and Delta Rotations
+    return (torch.stack(all_global_pos).numpy(), 
+            root_orientations.numpy(), 
+            root_rot_delta_mat.numpy())
 
 def find_file():
     subj = FILTER_SUBJECT if FILTER_SUBJECT else "*"
@@ -178,31 +170,31 @@ def find_file():
 def main():
     skel_cfg = get_totalcapture_skeleton()
     parents = skel_cfg['parents']
-    offsets = skel_cfg['offsets'] # [22, 3]
+    offsets = skel_cfg['offsets']
     
     filepath = find_file()
     print(f"Loading: {filepath}")
     raw_data = np.load(filepath)
     
-    # Returns data that is ALREADY Z-Up
-    positions = reconstruct_global_motion(raw_data, parents, offsets)
+    # Unpack returned values
+    positions, global_rots, delta_rots = reconstruct_global_motion(raw_data, parents, offsets)
     num_frames = positions.shape[0]
     
     # Plot Setup
-    fig = plt.figure(figsize=(10, 8))
+    fig = plt.figure(figsize=(12, 8)) # Wider figure for text
     fig.suptitle(f"File: {os.path.basename(filepath)}", fontsize=12)
-    plt.subplots_adjust(bottom=0.25)
+    plt.subplots_adjust(bottom=0.25, left=0.30) # Make room on left for text
     
     ax = fig.add_subplot(111, projection='3d')
     
-    # Info Text
-    info_text = fig.text(0.05, 0.90, "", fontsize=10, fontfamily='monospace', verticalalignment='top')
+    # --- INFO TEXT ---
+    # Placed on the left side of the figure
+    info_text = fig.text(0.02, 0.5, "", fontsize=11, fontfamily='monospace', verticalalignment='center')
     
     scat = ax.scatter([], [], [], c='r', s=15)
     lines = [ax.plot([], [], [], 'b-', lw=2)[0] for _ in range(1, 22)]
     traj_line, = ax.plot([], [], [], 'g--', lw=1)
     
-    # Standard Z-Up Limits
     ax.set_xlim(-2.0, 2.0)
     ax.set_ylim(-2.0, 2.0)
     ax.set_zlim(-1.0, 2.0)
@@ -211,14 +203,14 @@ def main():
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
 
-    ax_slider = plt.axes([0.25, 0.1, 0.65, 0.03])
+    ax_slider = plt.axes([0.30, 0.1, 0.60, 0.03])
     slider = Slider(ax_slider, 'Frame', 0, num_frames-1, valinit=0, valstep=1)
 
     def update_view(val):
         frame = int(slider.val)
         current_pose = positions[frame] 
         
-        # --- PLOTTING IS NOW RAW (X=X, Y=Y, Z=Z) ---
+        # Plotting (Already Z-Up)
         xs = current_pose[:, 0]
         ys = current_pose[:, 1]
         zs = current_pose[:, 2]
@@ -230,7 +222,6 @@ def main():
             parent = parents[child]
             p1 = current_pose[parent]
             p2 = current_pose[child]
-            
             line.set_data([p1[0], p2[0]], [p1[1], p2[1]]) 
             line.set_3d_properties([p1[2], p2[2]])
             
@@ -238,13 +229,22 @@ def main():
         traj_line.set_data(history[:, 0], history[:, 1])
         traj_line.set_3d_properties(history[:, 2])
         
-        # Info Text
-        root_p = current_pose[0]
-        info_str = (f"Frame: {frame}\n"
-                    f"Root Pos (Z-Up):\n"
-                    f"  X: {root_p[0]:.3f}\n"
-                    f"  Y: {root_p[1]:.3f}\n"
-                    f"  Z: {root_p[2]:.3f}")
+        # --- Update Info Text ---
+        # Get Angles
+        g_r, g_p, g_y = rotation_matrix_to_euler(global_rots[frame])
+        d_r, d_p, d_y = rotation_matrix_to_euler(delta_rots[frame])
+
+        info_str = (
+            f"Frame: {frame}\n\n"
+            f"HIP GLOBAL ORIENTATION:\n"
+            f"  Roll : {g_r:.1f}°\n"
+            f"  Pitch: {g_p:.1f}°\n"
+            f"  Yaw  : {g_y:.1f}°\n\n"
+            f"HIP DELTA ORIENTATION:\n"
+            f"  Roll : {d_r:.3f}°\n"
+            f"  Pitch: {d_p:.3f}°\n"
+            f"  Yaw  : {d_y:.3f}°"
+        )
         info_text.set_text(info_str)
         
         fig.canvas.draw_idle()

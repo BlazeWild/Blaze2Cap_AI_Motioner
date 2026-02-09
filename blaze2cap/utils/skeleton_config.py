@@ -48,6 +48,7 @@ PARENTS = [
 # - X: Lateral (Positive = Right)
 # - Y: Vertical (Positive = Down)
 # - Z: Depth    (Positive = Forward)
+
 # OFFSETS_METERS = torch.tensor([
 #     [0.0, 0.0, 0.0],                     # 0: Hips_pos (Root)
 #     [0.0, 0.0, 0.0],                     # 1: Hips_rot
