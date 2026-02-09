@@ -69,7 +69,7 @@ CONFIG = {
     "max_windows_per_sample": 64,   # Number of WINDOWS to sample per file
     "lr": 1e-4,
     "weight_decay": 0.01,
-    "epochs": 150,
+    "epochs": 1000,
     "window_size": 64,
     "warmup_pct": 0.1,
     
@@ -453,16 +453,17 @@ def main():
             best_mpjpe = mpjpe
             logger.info(f"New best MPJPE: {best_mpjpe:.5f}")
             
-        save_checkpoint(
-            CONFIG["save_dir"], 
-            epoch, 
-            model, 
-            optimizer, 
-            scheduler,
-            config=CONFIG,
-            metrics=val_metrics, 
-            is_best=is_best
-        )
+        if epoch % 10 == 0 or is_best:
+            save_checkpoint(
+                CONFIG["save_dir"], 
+                epoch, 
+                model, 
+                optimizer, 
+                scheduler,
+                config=CONFIG,
+                metrics=val_metrics, 
+                is_best=is_best
+            )
 
         if epoch % 25 == 0:
             save_checkpoint(
