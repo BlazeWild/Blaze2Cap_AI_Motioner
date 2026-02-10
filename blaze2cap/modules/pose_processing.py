@@ -140,11 +140,36 @@ def process_blazepose_frames(raw_data, window_size):
     # 4. Normalization & Centering
     screen_norm = (screen * 2.0) - 1.0
     
+    # ASPECT RATIO CORRECTION (16:9)
+    # Multiply X by 16/9 so that coordinate units are roughly isotropic (1 unit X approx = 1 unit Y in physical space)
+    screen_norm[:, :, 0] *= (16.0 / 9.0)
+    
     # Center Screen Data around Root (MidHip is index 26)
-    screen_root = screen_norm[:, I_MIDHIP:I_MIDHIP+1, :]
+    # MODIFIED: Center relative to the ANCHOR frame's hip, not the current frame's hip.
+    # This preserves the trajectory of the hip across the screen.
+    
+    # 1. Get Root positions for all frames
+    root_positions = screen_norm[:, I_MIDHIP, :] # (F_pad, 2)
+    
+    # 2. Identify anchor frames (Where sequence starts)
+    # anchor shape is (F_pad, 1, 1), is_anchor is boolean
+    is_start = (anchor[:, 0, 0] == 0)
+    
+    # 3. Propagate average root position of the anchor frame to all subsequent frames in the sequence
+    # Create indices 0..F_pad-1
+    idxs = np.arange(F_pad)
+    # replace non-anchor indices with 0, then accumulate max to carry forward the anchor index
+    # Note: This relies on index 0 being an anchor (which is true due to padding or data structure)
+    anchor_indices = np.maximum.accumulate(np.where(is_start, idxs, 0))
+    
+    # 4. Gather the reference roots
+    ref_roots = root_positions[anchor_indices] # (F_pad, 2)
+    screen_root = ref_roots[:, np.newaxis, :] # (F_pad, 1, 2)
+    
+    # 5. Center
     screen_centered = screen_norm - screen_root
     
-    # Center World Data around Root
+    # Center World Data around Root (Keep per-frame centering for World to get local pose 3D)
     world_root = pos[:, I_MIDHIP:I_MIDHIP+1, :]
     world_centered = pos - world_root
 

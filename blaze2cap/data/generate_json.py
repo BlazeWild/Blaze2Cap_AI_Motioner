@@ -60,8 +60,8 @@ TEST_ACTIONS = {'walking2', 'freestyle3', 'acting3'}
 data_list = []
 
 # Input/Output Folders
-blaze_root = os.path.join(dataset_root, 'blazefinal')
-gt_root = os.path.join(dataset_root, 'gtfinal')
+blaze_root = os.path.join(dataset_root, 'blazepose_final')
+gt_root = os.path.join(dataset_root, 'gt_final')
 
 print(f"Scanning dataset at: {os.path.abspath(dataset_root)}")
 
@@ -74,10 +74,10 @@ excluded_count = 0
 # Walk through BlazePose folder
 for root, dirs, files in os.walk(blaze_root):
     for filename in files:
-        if filename.endswith('.npy') and filename.startswith("blaze_"):
+        if filename.endswith('.npy') and filename.startswith("blazepose_"):
             
             # --- 1. Extract metadata from path or filename ---
-            # Filename format: blaze_S1_acting1_cam1_seg0...npy
+            # Filename format: blazepose_S1_acting1_cam1_seg0...npy
             parts = filename.split('_')
             
             # Safe extraction
@@ -108,7 +108,7 @@ for root, dirs, files in os.walk(blaze_root):
             rel_dir = os.path.relpath(root, blaze_root)
             
             # Target filename: gt_S1_acting1_cam1_seg0...npy
-            gt_filename = filename.replace("blaze_", "gt_", 1)
+            gt_filename = filename.replace("blazepose_", "gt_", 1)
             
             source_full_path = os.path.join(root, filename)
             target_full_path = os.path.join(gt_root, rel_dir, gt_filename)

@@ -108,8 +108,8 @@ def analyze_dataset(dataset_name, root_path):
 if __name__ == "__main__":
     base_dir = Path(__file__).parent.resolve()
     
-    gt_path = base_dir / "gtfinal"
-    blaze_path = base_dir / "blazefinal"
+    gt_path = base_dir / "gt_final"
+    blaze_path = base_dir / "blazepose_final"
     
     analyze_dataset("GT Final", gt_path)
     analyze_dataset("Blaze Final", blaze_path)

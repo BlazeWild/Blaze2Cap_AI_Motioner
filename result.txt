@@ -1,1 +1,0 @@
-python3: can't open file '/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/check_bone_lengths_v2.py': [Errno 2] No such file or directory
