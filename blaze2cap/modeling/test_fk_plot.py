@@ -20,11 +20,11 @@ from pathlib import Path
 import math
 
 # --- Project Imports ---
-# sys.path.append(str(Path(__file__).resolve().parents[2])) 
+sys.path.append(str(Path(__file__).resolve().parents[2])) 
 from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
 
 # --- Configuration ---
-DATASET_ROOT = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gt_augmented"
+DATASET_ROOT = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gt_final"
 
 FILTER_SUBJECT = "S1"
 FILTER_ACTION = "acting1"
