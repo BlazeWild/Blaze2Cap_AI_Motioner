@@ -7,7 +7,7 @@ name = "blaze2cap"
 version = "0.1.0"
 description = "Real-Time 3D Motion Prediction from 2D/3D Pose Landmarks"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.13"
 license = {text = "MIT"}
 authors = [
     {name = "BlazeWild", email = "your.email@example.com"}

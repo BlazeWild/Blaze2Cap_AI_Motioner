@@ -6,7 +6,7 @@
 import torch
 import numpy as np
 import logging
-from blaze2cap.models.loss import MotionCorrectionLoss
+from blaze2cap.modeling.loss import MotionCorrectionLoss
 
 logger = logging.getLogger(__name__)
 

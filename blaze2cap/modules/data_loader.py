@@ -19,15 +19,18 @@ class PoseSequenceDataset(data.Dataset):
             
         # Filter samples
         self.samples = []
-        print(f"[{split.upper()}] Scanning dataset for valid samples...")
-        
         candidates = [item for item in full_data if item.get(f"split_{split}", False)]
+        print(f"[{split.upper()}] Found {len(candidates)} candidate samples. Checking file existence...")
         
-        for item in candidates:
+        from tqdm import tqdm
+        invalid_count = 0
+        for item in tqdm(candidates, desc=f"Checking {split} files", unit="files"):
             if self._is_valid(item):
                 self.samples.append(item)
+            else:
+                invalid_count += 1
                 
-        print(f"[{split.upper()}] Loaded {len(self.samples)} valid samples (filtered {len(candidates) - len(self.samples)} invalid).")
+        print(f"[{split.upper()}] Ready: {len(self.samples)} valid samples (filtered {invalid_count} invalid/missing).")
 
     def _is_valid(self, item):
         src_path = os.path.join(self.dataset_root, item["source"])
@@ -35,10 +38,13 @@ class PoseSequenceDataset(data.Dataset):
         
         if not os.path.exists(src_path) or not os.path.exists(tgt_path):
             return False
+        
+        # Quick check: file size must be > 128 bytes (NPY header)
+        if os.path.getsize(src_path) < 128 or os.path.getsize(tgt_path) < 128:
+            return False
             
         try:
-            # Quick check for empty files
-            # mmap_mode='r' avoids reading the whole file, just reads header
+            # Quick check using mmap without loading data
             src_data = np.load(src_path, mmap_mode='r')
             if src_data.shape[0] == 0:
                 return False
