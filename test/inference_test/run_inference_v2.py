@@ -39,7 +39,7 @@ except ImportError as e:
 
 # --- CONFIGURATION ---
 INPUT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazepose_final/S1/acting1/cam1/blazepose_S1_acting1_cam1_seg0_s1_o0.npy"
-CHECKPOINT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/milestone_epoch25.pth"
+CHECKPOINT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/checkpoint_epoch33.pth"
 OUTPUT_DIR = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/test/inference_test"
 WINDOW_SIZE = 64
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -51,16 +51,16 @@ def main():
     model = MotionTransformer(
         num_joints=27, 
         input_feats=18, 
-        d_model=256, 
+        d_model=512, 
         num_layers=4, 
-        n_head=4, 
-        d_ff=512, 
+        n_head=8, 
+        d_ff=1024, 
         dropout=0.1,
         max_len=512  # Matching checkpoint (512 vs default 1024)
     ).to(DEVICE)
     
     print(f"Loading weights from: {CHECKPOINT_FILE}")
-    checkpoint = torch.load(CHECKPOINT_FILE, map_location=DEVICE)
+    checkpoint = torch.load(CHECKPOINT_FILE, map_location=DEVICE, weights_only=False)
     
     # Handle different checkpoint formats
     if 'model_state_dict' in checkpoint:

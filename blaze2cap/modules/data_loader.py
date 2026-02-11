@@ -1,3 +1,5 @@
+# data_loader.py
+
 import os
 import json
 import numpy as np
@@ -5,7 +7,7 @@ import torch
 from torch.utils import data
 
 # IMPORT FROM THE NEW FILE
-from blaze2cap.modules.pose_processing import process_blazepose_frames
+from blaze2cap.modules.pose_processing_posonly import process_blazepose_frames
 
 class PoseSequenceDataset(data.Dataset):
     def __init__(self, dataset_root, window_size, split="train", max_windows=None):

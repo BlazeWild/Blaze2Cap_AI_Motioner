@@ -31,7 +31,8 @@ DATASET_ROOT = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/
 # Filter Options
 FILTER_SUBJECT = "S1"
 FILTER_ACTION = "acting1"
-FILTER_CAM = "cam1"
+FILTER_CAM = "cam2"
+FILTER_SEGMENT = "seg0"
 
 # FILTER_SUBJECT = None
 # FILTER_ACTION = None
@@ -65,8 +66,8 @@ def reconstruct_global_motion(data_npy, parents, offsets):
     
     COORD_TRANSFORM = torch.tensor([
         [1.0, 0.0, 0.0],  # X -> X
-        [0.0, 0.0, -1.0],  # Y -> Z
-        [0.0, -1.0, 0.0]  # Z -> -Y
+        [0.0, 1.0, 0.0],  # Y -> Z
+        [0.0, 0.0, 1.0]  # Z -> -Y
     ]).float()
     
     # Inverse is needed for rotation similarity transform (M @ R @ M.T)
@@ -81,7 +82,7 @@ def reconstruct_global_motion(data_npy, parents, offsets):
     offsets = torch.matmul(offsets, COORD_TRANSFORM_T) # Vector mult is v @ M.T
 
     # B. Transform Root Velocity
-    root_vel_local = data[:, 0, :3] * -1.0 
+    root_vel_local = data[:, 0, :3] * 1.0 
     # [F, 3] -> [F, 3]
     root_vel_local = torch.matmul(root_vel_local, COORD_TRANSFORM_T)
 
