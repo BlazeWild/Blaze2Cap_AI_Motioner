@@ -52,21 +52,21 @@ CONFIG = {
     # Model Hyperparameters (unchanged)
     "num_joints": 27,
     "input_feats": 18,
-    "d_model": 256,
+    "d_model": 512,
     "num_layers": 4,
-    "n_head": 4,
-    "d_ff": 512,
+    "n_head": 8,
+    "d_ff": 1024,
     "dropout": 0.1,
     "max_len": 512,
     
     # Training Hyperparameters (RTX 4090 / L40S Optimized)
     "batch_size": 32,         # Number of FILES to load per step
     "num_workers": 6,         # Reduced workers to save overhead
-    "max_windows_per_sample": 64,   # Number of WINDOWS to sample per file
+    "max_windows_per_sample": 64,  # takes random 64 sampled windows from each file, ensuring full diversity while fitting in memory
     "lr": 1e-4,
     "weight_decay": 0.01,
     "epochs": 150,
-    "window_size": 64,
+    "window_size": 64, # window size.
     "warmup_pct": 0.1,
     
     # --- LOSS WEIGHTS ---

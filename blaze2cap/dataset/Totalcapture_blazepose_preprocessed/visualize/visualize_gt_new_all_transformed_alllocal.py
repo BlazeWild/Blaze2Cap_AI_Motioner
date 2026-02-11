@@ -17,6 +17,7 @@ import os
 # CONVERTED_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/visualize/S1_acting1_cam1_converted_zup.npy"
 CONVERTED_FILE="/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/gt_final/S1/freestyle2/cam1/gt_S1_freestyle2_cam1_seg0_s1_o0.npy"
 
+
 # --- HARDCODED SKELETON (Z-Up) ---
 PARENTS = [-1, 0, 1, 2, 3, 4, 5, 6, 5, 8, 9, 10, 5, 12, 13, 14, 1, 16, 17, 1, 19, 20]
 

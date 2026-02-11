@@ -9,27 +9,37 @@ import math
 # --- ENVIRONMENT SETUP ---
 # Add the project root to sys.path to allow imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir) # Should be .../___MOTION_T_LIGHTNING
+# Current script is at: .../Blaze2Cap/test/inference_test/run_inference_v2.py
+# We need to go up 3 levels to reach ___MOTION_T_LIGHTNING
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir))) # Should be .../___MOTION_T_LIGHTNING
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-# Now we can import modules
+# Now we can import modules directly from their .py files to avoid __init__.py conflicts
 try:
-    from Blaze2Cap.blaze2cap.modules.models import MotionTransformer
-    from Blaze2Cap.blaze2cap.modules.pose_processing import process_blazepose_frames
-except ImportError:
-    # Fallback if running from a different relative path
-    try:
-        from blaze2cap.modules.models import MotionTransformer
-        from blaze2cap.modules.pose_processing import process_blazepose_frames
-    except ImportError as e:
-        print("Error importing modules. Please ensure your PYTHONPATH is set correctly or run this script from the project root.")
-        print(f"Current sys.path: {sys.path}")
-        raise e
+    # Add the blaze2cap directory to sys.path
+    blaze2cap_modules_dir = os.path.join(project_root, 'Blaze2Cap', 'blaze2cap', 'modules')
+    if blaze2cap_modules_dir not in sys.path:
+        sys.path.insert(0, blaze2cap_modules_dir)
+    
+    # Import directly from .py files (this will skip all __init__.py files)
+    import models
+    import pose_processing
+    
+    MotionTransformer = models.MotionTransformer
+    process_blazepose_frames = pose_processing.process_blazepose_frames
+    
+    print("✅ Modules imported successfully")
+    
+except ImportError as e:
+    print("Error importing modules. Please ensure your PYTHONPATH is set correctly or run this script from the project root.")
+    print(f"Current sys.path: {sys.path}")
+    print(f"Import error: {e}")
+    raise e
 
 # --- CONFIGURATION ---
 INPUT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazepose_final/S1/acting1/cam1/blazepose_S1_acting1_cam1_seg0_s1_o0.npy"
-CHECKPOINT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/checkpoint_epoch51.pth"
+CHECKPOINT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/milestone_epoch25.pth"
 OUTPUT_DIR = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/test/inference_test"
 WINDOW_SIZE = 64
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
