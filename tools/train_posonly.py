@@ -12,6 +12,8 @@ import os
 import sys
 import functools
 import logging
+import glob
+import re
 from collections import defaultdict
 
 # Add project root to path for imports
@@ -58,7 +60,7 @@ CONFIG = {
     "max_len": 512,
     
     # Training
-    "batch_size": 32,
+    "batch_size": 16,
     "num_workers": 6,
     "max_windows_train": 64,  # Subsample for speed
     "lr": 1e-4,
@@ -272,8 +274,39 @@ def main():
     
     # 6. Training Loop
     best_mpjpe = float("inf")
+    start_epoch = 1
     
-    for epoch in range(1, CONFIG["epochs"] + 1):
+    # Try to find the most recent checkpoint
+    checkpoint_load_path = os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth")
+    if not os.path.exists(checkpoint_load_path):
+        # Fallback to find the latest numbered checkpoint if 'latest_checkpoint.pth' is missing
+        available_checkpoints = glob.glob(os.path.join(CONFIG["save_dir"], "checkpoint_epoch*.pth"))
+        if available_checkpoints:
+            # Sort by epoch number in the filename
+            available_checkpoints.sort(key=lambda f: int(re.findall(r'\d+', os.path.basename(f))[0]), reverse=True)
+            checkpoint_load_path = available_checkpoints[0]
+
+    if os.path.exists(checkpoint_load_path):
+        logger.info(f"🔄 Loading checkpoint from {checkpoint_load_path}")
+        checkpoint = torch.load(checkpoint_load_path, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        
+        # Load optimizer and scheduler if present
+        if 'optimizer_state_dict' in checkpoint:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if 'scheduler_state_dict' in checkpoint:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        
+        start_epoch = checkpoint.get('epoch', 0) + 1
+        best_mpjpe = checkpoint.get('best_mpjpe', float('inf'))
+        logger.info(f"🚀 Resuming from epoch {start_epoch} (Best MPJPE: {best_mpjpe:.2f})")
+    else:
+        logger.info("🆕 No checkpoint found. Starting training from scratch.")
+    
+    # Define standard path for saving the "latest" marker
+    latest_path = os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth")
+    
+    for epoch in range(start_epoch, CONFIG["epochs"] + 1):
         logger.info(f"--- Epoch {epoch}/{CONFIG['epochs']} ---")
         
         # Train
@@ -292,16 +325,21 @@ def main():
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
                 'best_mpjpe': best_mpjpe,
             }, os.path.join(CONFIG["save_dir"], "best_model.pth"))
             logger.info(f"⭐ New Best Model Saved! ({val_mpjpe_mm:.2f} mm)")
             
-        # Periodic Save
-        if epoch % 10 == 0:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-            }, os.path.join(CONFIG["save_dir"], f"checkpoint_epoch{epoch}.pth"))
+        # Save Every Epoch
+        checkpoint_data = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'best_mpjpe': best_mpjpe,
+        }
+        torch.save(checkpoint_data, os.path.join(CONFIG["save_dir"], f"checkpoint_epoch{epoch}.pth"))
+        torch.save(checkpoint_data, latest_path)
             
     logger.info(f"Training Complete. Best MPJPE: {best_mpjpe:.2f} mm")
 
