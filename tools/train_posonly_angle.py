@@ -57,14 +57,14 @@ CONFIG = {
     "num_joints_out": 20,   # TotalCapture Body (2-21)
     
     "d_model": 512,
-    "num_layers": 6,        # Deeper model for rotation learning
+    "num_layers": 4,        # Deeper model for rotation learning
     "n_head": 8,
     "d_ff": 1024,
     "dropout": 0.1,
     "max_len": 512,
     
     # Training
-    "batch_size": 32,
+    "batch_size": 16,
     "num_workers": 6,
     "max_windows_train": 64,  # Subsample for speed
     "lr": 1e-4,
@@ -264,15 +264,13 @@ def main():
     except Exception as e:
         logger.warning(f"Could not print summary: {e}")
 
-    # 4. Optimizer
-    optimizer = optim.AdamW(model.parameters(), lr=CONFIG["lr"], weight_decay=CONFIG["weight_decay"])
-    
-    scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer,
-        max_lr=CONFIG["lr"] * 10,
-        steps_per_epoch=len(train_loader),
-        epochs=CONFIG["epochs"],
-        pct_start=CONFIG["warmup_pct"]
+    # 4. Optimizer - Initialize with proper settings
+    optimizer = optim.AdamW(
+        model.parameters(), 
+        lr=CONFIG["lr"], 
+        weight_decay=CONFIG["weight_decay"],
+        betas=(0.9, 0.999),
+        eps=1e-8
     )
     
     # 5. Loss
@@ -286,7 +284,7 @@ def main():
     
     scaler = GradScaler('cuda', enabled=CONFIG["use_amp"])
     
-    # 6. Training Loop
+    # 6. Training Loop - Load checkpoint BEFORE creating scheduler
     best_mpjpe = float("inf")
     start_epoch = 1
     
@@ -300,19 +298,49 @@ def main():
 
     if os.path.exists(checkpoint_load_path):
         logger.info(f"🔄 Loading checkpoint from {checkpoint_load_path}")
-        checkpoint = torch.load(checkpoint_load_path, map_location=device)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        
-        if 'optimizer_state_dict' in checkpoint:
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        if 'scheduler_state_dict' in checkpoint:
-            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        
-        start_epoch = checkpoint.get('epoch', 0) + 1
-        best_mpjpe = checkpoint.get('best_mpjpe', float('inf'))
-        logger.info(f"🚀 Resuming from epoch {start_epoch} (Best MPJPE: {best_mpjpe:.2f})")
+        try:
+            checkpoint = torch.load(checkpoint_load_path, map_location=device)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            
+            # Load optimizer state with error handling
+            if 'optimizer_state_dict' in checkpoint:
+                try:
+                    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                    logger.info("✅ Optimizer state loaded successfully")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not load optimizer state: {e}. Using fresh optimizer.")
+            
+            start_epoch = checkpoint.get('epoch', 0) + 1
+            best_mpjpe = checkpoint.get('best_mpjpe', float('inf'))
+            logger.info(f"🚀 Resuming from epoch {start_epoch} (Best MPJPE: {best_mpjpe:.2f})")
+        except Exception as e:
+            logger.error(f"❌ Error loading checkpoint: {e}. Starting from scratch.")
+            start_epoch = 1
+            best_mpjpe = float("inf")
     else:
         logger.info("🆕 No checkpoint found. Starting training from scratch.")
+    
+    # Create scheduler AFTER loading checkpoint to account for resumed training
+    total_steps = len(train_loader) * CONFIG["epochs"]
+    current_step = len(train_loader) * (start_epoch - 1)
+    
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=CONFIG["lr"] * 10,
+        total_steps=total_steps,
+        pct_start=CONFIG["warmup_pct"],
+        last_epoch=current_step - 1 if start_epoch > 1 else -1
+    )
+    
+    # If resuming, load scheduler state
+    if start_epoch > 1 and os.path.exists(checkpoint_load_path):
+        try:
+            checkpoint = torch.load(checkpoint_load_path, map_location=device)
+            if 'scheduler_state_dict' in checkpoint:
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+                logger.info("✅ Scheduler state loaded successfully")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not load scheduler state: {e}. Scheduler will continue from current position.")
     
     latest_path = os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth")
     
