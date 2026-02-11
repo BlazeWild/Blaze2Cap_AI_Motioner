@@ -28,7 +28,7 @@ from tqdm import tqdm
 # --- Blaze2Cap Modules ---
 from blaze2cap.modules.models_posonly import MotionTransformer
 from blaze2cap.modules.data_loader_posonly import PoseSequenceDataset
-from blaze2cap.modules.loss_posonly import MotionLoss
+from blaze2cap.modeling.loss_posonly import MotionLoss
 from blaze2cap.utils.logging_ import setup_logging
 from blaze2cap.utils.train_utils import set_random_seed, Timer
 
@@ -41,9 +41,9 @@ torch.backends.cudnn.benchmark = True
 # --- CONFIGURATION ---
 CONFIG = {
     "experiment_name": "canonical_motion_transformer",
-    "data_root": "./blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset",
-    "save_dir": "./checkpoints",
-    "log_dir": "./logs",
+    "data_root": os.path.join(PROJECT_ROOT, "blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset"),
+    "save_dir": os.path.join(PROJECT_ROOT, "checkpoints"),
+    "log_dir": os.path.join(PROJECT_ROOT, "logs"),
     
     # Model Hyperparameters
     "num_joints_in": 19,    # BlazePose Reduced
@@ -51,7 +51,7 @@ CONFIG = {
     "num_joints_out": 20,   # TotalCapture Body (2-21)
     
     "d_model": 512,
-    "num_layers": 6,
+    "num_layers": 4,
     "n_head": 8,
     "d_ff": 1024,
     "dropout": 0.1,
@@ -178,10 +178,10 @@ def validate(model, loader, criterion, device, epoch):
 def collate_flatten(batch):
     """Custom collate to handle variable length or just stack."""
     # Since we window in Dataset, everything should be fixed size (64)
-    # Just standard stacking
+    # Use torch.cat to merge all windows from multiple files into one big batch
     return {
-        "source": torch.stack([b["source"] for b in batch]),
-        "target": torch.stack([b["target"] for b in batch])
+        "source": torch.cat([b["source"] for b in batch], dim=0),
+        "target": torch.cat([b["target"] for b in batch], dim=0)
     }
 
 def main():

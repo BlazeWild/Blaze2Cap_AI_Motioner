@@ -3,7 +3,7 @@ import json
 import numpy as np
 import torch
 from torch.utils import data
-from blaze2cap.modules.pose_processing import process_blazepose_frames
+from blaze2cap.modules.pose_processing_posonly import process_blazepose_frames
 from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton # Assuming this exists
 
 class PoseSequenceDataset(data.Dataset):
@@ -24,6 +24,9 @@ class PoseSequenceDataset(data.Dataset):
             
         self.samples = [item for item in full_data if item.get(f"split_{split}", False)]
         print(f"[{split.upper()}] Loaded {len(self.samples)} samples.")
+
+    def __len__(self):
+        return len(self.samples)
 
     def _compute_target_positions(self, gt_data_np):
         """
@@ -118,19 +121,18 @@ class PoseSequenceDataset(data.Dataset):
         # A. Process Input (BlazePose -> 19 Joints, 8 Channels, Canonical)
         X, _ = process_blazepose_frames(input_data, self.window_size)
         
-        # B. Process Target (GT Rotations -> 20 Joints, 3D Positions, Canonical)
-        Y_positions = self._compute_target_positions(gt_raw) # (F, 20, 3)
-        
-        # Window Target
+        # B. Window Target (GT Rotations -> 22 Joints, 6D)
         N = self.window_size
-        Y_flat = Y_positions.reshape(min_len, -1)
+        F = gt_raw.shape[0]
         
-        pad_gt = np.repeat(Y_flat[0:1], N-1, axis=0)
-        full_gt = np.concatenate([pad_gt, Y_flat], axis=0)
+        # Padding for target (Mirror input padding: repeat first frame)
+        pad_gt = np.repeat(gt_raw[0:1], N-1, axis=0)
+        full_gt = np.concatenate([pad_gt, gt_raw], axis=0)
         
-        strides_gt = (full_gt.strides[0], full_gt.strides[0], full_gt.strides[1])
+        # Windowing GT Rotations
+        s0, s1, s2 = full_gt.strides
         Y = np.lib.stride_tricks.as_strided(
-            full_gt, shape=(min_len, N, full_gt.shape[1]), strides=strides_gt
+            full_gt, shape=(F, N, 22, 6), strides=(s0, s0, s1, s2)
         )
         
         # Subsampling
@@ -140,8 +142,8 @@ class PoseSequenceDataset(data.Dataset):
             Y = Y[indices]
 
         # Returns:
-        # source: (B, 64, 19, 8) -> flattened to (B, 64, 152) in model
-        # target: (B, 64, 20, 3) -> flattened to (B, 64, 60) in model
+        # source: (num_windows, 64, 19, 8)
+        # target: (num_windows, 64, 22, 6)
         return {
             "source": torch.from_numpy(X.copy()), 
             "target": torch.from_numpy(Y.copy())

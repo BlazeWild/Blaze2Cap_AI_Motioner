@@ -140,9 +140,12 @@ def process_blazepose_frames(raw_data, window_size):
     padded = np.concatenate([padding, features], axis=0)
     
     # Stride tricks for windows
-    strides = (padded.strides[0], padded.strides[0], padded.strides[1])
+    # We want shape (F, N, 19, 8). 
+    # Current padded is (F_pad, 19, 8). 
+    # Byte strides are (s0, s1, s2)
+    s0, s1, s2 = padded.strides
     X_windows = np.lib.stride_tricks.as_strided(
-        padded, shape=(F, N, 8), strides=strides
+        padded, shape=(F, N, 19, 8), strides=(s0, s0, s1, s2)
     )
     
     # Dummy mask (all valid)
