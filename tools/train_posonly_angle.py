@@ -1,8 +1,11 @@
 """
-Blaze2Cap Training Script (Canonical Position Version)
-======================================================
+Blaze2Cap Training Script (Canonical Rotation Version - 27 Joints)
+==================================================================
 Train the MotionTransformer model to predict 3D skeletal motion from BlazePose landmarks.
-Now uses a direct Position-to-Position architecture with Canonical Alignment.
+Now uses a Structure-Aware architecture:
+- Input: 27-joint BlazePose Features (14 channels)
+- Output: 20-joint Body Rotations (6D)
+- Loss: Hybrid (Rotation Error + FK Position Error)
 
 Usage:
     python -m tools.train
@@ -28,9 +31,10 @@ from torchinfo import summary
 from tqdm import tqdm
 
 # --- Blaze2Cap Modules ---
-from blaze2cap.modules.models_posonly import MotionTransformer
-from blaze2cap.modules.data_loader_posonly import PoseSequenceDataset
-from blaze2cap.modeling.loss_posonly import MotionLoss
+# Using the specific _posonly_angle modules as requested
+from blaze2cap.modules.models_posonly_angle import MotionTransformer
+from blaze2cap.modules.data_loader_posonly_angle import PoseSequenceDataset
+from blaze2cap.modeling.loss_posonly_angle import MotionLoss
 from blaze2cap.utils.logging_ import setup_logging
 from blaze2cap.utils.train_utils import set_random_seed, Timer
 
@@ -42,25 +46,25 @@ torch.backends.cudnn.benchmark = True
 
 # --- CONFIGURATION ---
 CONFIG = {
-    "experiment_name": "canonical_motion_transformer",
+    "experiment_name": "canonical_rotation_27joints",
     "data_root": os.path.join(PROJECT_ROOT, "blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset"),
     "save_dir": os.path.join(PROJECT_ROOT, "checkpoints"),
     "log_dir": os.path.join(PROJECT_ROOT, "logs"),
     
     # Model Hyperparameters
-    "num_joints_in": 19,   # BlazePose Reduced
-    "input_feats": 14,       # [wx,wy,wz, vx,vy,vz, vis, anc]
+    "num_joints_in": 27,    # <--- CHANGED: Using full BlazePose (27 joints)
+    "input_feats": 14,      # <--- CHANGED: 14 dims [pos(3), vel(3), parent(3), child(3), vis(1), anc(1)]
     "num_joints_out": 20,   # TotalCapture Body (2-21)
     
     "d_model": 512,
-    "num_layers": 4,
+    "num_layers": 6,        # Deeper model for rotation learning
     "n_head": 8,
     "d_ff": 1024,
     "dropout": 0.1,
     "max_len": 512,
     
     # Training
-    "batch_size": 16,
+    "batch_size": 32,
     "num_workers": 6,
     "max_windows_train": 64,  # Subsample for speed
     "lr": 1e-4,
@@ -69,12 +73,12 @@ CONFIG = {
     "window_size": 64,
     "warmup_pct": 0.1,
     
-    # Loss Weights
-    "lambda_rot": 1.0,        # <--- NEW: Rotation Consistency
-    "lambda_pos": 10.0,       # <--- KEEP: Position Accuracy
-    "lambda_vel": 1.0,        
-    "lambda_smooth": 0.1,     
-    "lambda_contact": 0.5,
+    # Loss Weights (Hybrid)
+    "lambda_rot": 1.0,        # <--- NEW: Rotation Consistency (Structure)
+    "lambda_pos": 10.0,       # Position Accuracy (FK MPJPE)
+    "lambda_vel": 1.0,        # Velocity Smoothness
+    "lambda_smooth": 0.1,     # Acceleration Smoothness
+    "lambda_contact": 0.5,    # Anti-slide
     
     # System
     "seed": 42,
@@ -98,19 +102,22 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
         timer.tick("data_load")
         
         # 1. Move to Device
-        src = batch["source"].to(device, non_blocking=True) # (B, 64, 19, 8)
-        tgt_rot = batch["target"].to(device, non_blocking=True) # (B, 64, 22, 6)
+        # Input: (B, 64, 27, 14)
+        src = batch["source"].to(device, non_blocking=True) 
+        # Target: (B, 64, 22, 6) - GT Rotations
+        tgt_rot = batch["target"].to(device, non_blocking=True) 
         
         # 2. Forward Pass
         optimizer.zero_grad(set_to_none=True)
         
         with autocast('cuda', enabled=CONFIG["use_amp"]):
-            # Pred: (B, 64, 20, 3) -> Positions
+            # Pred: (B, 64, 20, 6) -> Body Rotations
             preds = model(src)
             timer.tick("forward")
             
             # 3. Compute Loss
-            # Loss function handles GT Rotation -> GT Position conversion internally
+            # Loss function compares Pred Rotations vs GT Rotations
+            # AND Pred Positions (via FK) vs GT Positions (via FK)
             loss, loss_logs = criterion(preds, tgt_rot)
             
             if not torch.isfinite(loss):
@@ -134,7 +141,8 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
             
         pbar.set_postfix({
             "Loss": f"{loss.item():.4f}", 
-            "MPJPE": f"{loss_logs['l_mpjpe']:.4f}"
+            "Rot": f"{loss_logs.get('l_rot', 0):.4f}",    # Rotation Error
+            "Pos": f"{loss_logs.get('l_mpjpe', 0):.4f}"   # Position Error (FK)
         })
 
     # Averages
@@ -155,15 +163,20 @@ def validate(model, loader, criterion, device, epoch):
             src = batch["source"].to(device, non_blocking=True)
             tgt_rot = batch["target"].to(device, non_blocking=True)
             
-            # Forward
-            preds = model(src) # (B, S, 20, 3)
+            # 1. Forward Pass (Outputs Rotations)
+            preds_rot = model(src) # (B, S, 20, 6)
             
-            # Get Ground Truth Positions using the Loss function's helper
-            # This ensures we compare apples to apples (Canonical Pos vs Canonical Pos)
-            tgt_pos = criterion._compute_target_positions(tgt_rot)
+            # 2. Convert Prediction to Position (using Loss FK helper)
+            pred_pos = criterion._run_canonical_fk(preds_rot)
             
-            # Compute MPJPE (Euclidean Dist)
-            diff = preds - tgt_pos
+            # 3. Convert GT Rotation to Position
+            # We must slice the GT (22 joints) to just the Body (20 joints) 
+            # because the helper expects (20, 6) input to run FK.
+            gt_body_rot = tgt_rot[:, :, 2:, :] 
+            tgt_pos = criterion._run_canonical_fk(gt_body_rot)
+            
+            # 4. Compute MPJPE (Euclidean Dist)
+            diff = pred_pos - tgt_pos
             dist = torch.norm(diff, dim=-1) # (B, S, 20)
             
             # Mean over batch/seq/joints
@@ -180,8 +193,7 @@ def validate(model, loader, criterion, device, epoch):
 
 def collate_flatten(batch):
     """Custom collate to handle variable length or just stack."""
-    # Since we window in Dataset, everything should be fixed size (64)
-    # Use torch.cat to merge all windows from multiple files into one big batch
+    # Stack windows from multiple files into one big batch
     return {
         "source": torch.cat([b["source"] for b in batch], dim=0),
         "target": torch.cat([b["target"] for b in batch], dim=0)
@@ -193,7 +205,7 @@ def main():
     logger = setup_logging(CONFIG["log_dir"], log_file="train.log")
     device = CONFIG["device"]
     
-    logger.info(f"🚀 Starting Canonical Training on {device}")
+    logger.info(f"🚀 Starting Canonical Rotation Training on {device}")
     
     # 2. Data
     logger.info("Initializing Datasets...")
@@ -224,7 +236,7 @@ def main():
     
     val_loader = DataLoader(
         val_dataset, 
-        batch_size=CONFIG["batch_size"], # Larger batch size for val is fine
+        batch_size=CONFIG["batch_size"], 
         shuffle=False, 
         num_workers=CONFIG["num_workers"],
         pin_memory=True,
@@ -265,6 +277,7 @@ def main():
     
     # 5. Loss
     criterion = MotionLoss(
+        lambda_rot=CONFIG["lambda_rot"],
         lambda_pos=CONFIG["lambda_pos"],
         lambda_vel=CONFIG["lambda_vel"],
         lambda_smooth=CONFIG["lambda_smooth"],
@@ -280,10 +293,8 @@ def main():
     # Try to find the most recent checkpoint
     checkpoint_load_path = os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth")
     if not os.path.exists(checkpoint_load_path):
-        # Fallback to find the latest numbered checkpoint if 'latest_checkpoint.pth' is missing
         available_checkpoints = glob.glob(os.path.join(CONFIG["save_dir"], "checkpoint_epoch*.pth"))
         if available_checkpoints:
-            # Sort by epoch number in the filename
             available_checkpoints.sort(key=lambda f: int(re.findall(r'\d+', os.path.basename(f))[0]), reverse=True)
             checkpoint_load_path = available_checkpoints[0]
 
@@ -292,7 +303,6 @@ def main():
         checkpoint = torch.load(checkpoint_load_path, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
         
-        # Load optimizer and scheduler if present
         if 'optimizer_state_dict' in checkpoint:
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         if 'scheduler_state_dict' in checkpoint:
@@ -304,7 +314,6 @@ def main():
     else:
         logger.info("🆕 No checkpoint found. Starting training from scratch.")
     
-    # Define standard path for saving the "latest" marker
     latest_path = os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth")
     
     for epoch in range(start_epoch, CONFIG["epochs"] + 1):
@@ -313,7 +322,7 @@ def main():
         # Train
         train_stats = train_one_epoch(model, train_loader, optimizer, scheduler, criterion, scaler, device, epoch)
         
-        logger.info(f"[TRAIN] Loss: {train_stats['loss']:.5f} | MPJPE_Proxy: {train_stats['l_mpjpe']:.5f} | Smooth: {train_stats['l_smooth']:.5f}")
+        logger.info(f"[TRAIN] Loss: {train_stats['loss']:.5f} | Rot: {train_stats.get('l_rot', 0):.5f} | Pos: {train_stats.get('l_mpjpe', 0):.5f}")
         
         # Validate
         val_mpjpe_mm = validate(model, val_loader, criterion, device, epoch)
@@ -345,7 +354,6 @@ def main():
     logger.info(f"Training Complete. Best MPJPE: {best_mpjpe:.2f} mm")
 
 if __name__ == "__main__":
-    # Create dirs
     os.makedirs(CONFIG["save_dir"], exist_ok=True)
     os.makedirs(CONFIG["log_dir"], exist_ok=True)
     main()
