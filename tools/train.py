@@ -30,7 +30,7 @@ from blaze2cap.utils.logging_ import setup_logging
 from blaze2cap.utils.train_utils import set_random_seed
 
 # NEW: Import the robust evaluator we just created
-from blaze2cap.utils.eval_motion_posonly_angle import evaluate_motion
+from blaze2cap.modeling.eval_motion import evaluate_motion
 
 # --- OPTIMIZATION (RTX 4090) ---
 torch.set_float32_matmul_precision('high') 
@@ -58,7 +58,8 @@ CONFIG = {
     "max_len": 512,
     
     # Training
-    "batch_size": 32,       # Reverted to 32 for stability (8 is too noisy)
+    "batch_size": 8,       # Reverted to 32 for stability (8 is too noisy)
+    "accumulation_steps": 4,  # NEW: Effective Batch Size = 8 * 4 = 32
     "num_workers": 6,
     "max_windows_train": 64, 
     "lr": 1e-4,             
@@ -85,44 +86,55 @@ CONFIG = {
 }
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-
 def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, device, epoch):
     model.train()
     stats = defaultdict(float)
     
     pbar = tqdm(loader, desc=f"Epoch {epoch} [TRAIN]")
     
-    for batch in pbar:
+    # Reset gradients at start of epoch
+    optimizer.zero_grad(set_to_none=True)
+    
+    for i, batch in enumerate(pbar):
         # Inputs
         src = batch["source"].to(device, non_blocking=True)
         tgt_rot = batch["target"].to(device, non_blocking=True)
-        
-        optimizer.zero_grad(set_to_none=True)
         
         # Forward & Loss
         with autocast('cuda', enabled=CONFIG["use_amp"]):
             preds = model(src)
             loss, loss_logs = criterion(preds, tgt_rot)
             
+            # Divide loss by accumulation steps to normalize gradients
+            loss = loss / CONFIG["accumulation_steps"]
+            
             if not torch.isfinite(loss):
                 continue
 
-        # Backward
+        # Backward (Accumulate Gradients)
         scaler.scale(loss).backward()
-        scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), CONFIG["gradient_clip"])
-        scaler.step(optimizer)
-        scaler.update()
-        scheduler.step()
         
-        # Logging
-        stats["loss"] += loss.item()
+        # Step Optimizer (Only every N batches)
+        if (i + 1) % CONFIG["accumulation_steps"] == 0:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), CONFIG["gradient_clip"])
+            
+            scaler.step(optimizer)
+            scaler.update()
+            scheduler.step()
+            
+            # Reset gradients only after step
+            optimizer.zero_grad(set_to_none=True)
+        
+        # Logging (Multiply loss back by steps for correct display)
+        current_loss = loss.item() * CONFIG["accumulation_steps"]
+        stats["loss"] += current_loss
         for k, v in loss_logs.items():
             stats[k] += v
             
         current_lr = scheduler.get_last_lr()[0]
         pbar.set_postfix({
-            "Loss": f"{loss.item():.4f}", 
+            "Loss": f"{current_loss:.4f}", 
             "Root": f"{loss_logs.get('l_root', 0):.4f}",
             "Pos": f"{loss_logs.get('l_mpjpe', 0):.4f}",
             "Slide": f"{loss_logs.get('l_contact', 0):.4f}",
@@ -131,6 +143,8 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
 
     N = len(loader)
     return {k: v / N for k, v in stats.items()}
+
+
 def validate(model, loader, device, epoch):
     """
     Uses the external evaluate_motion function to compute:
