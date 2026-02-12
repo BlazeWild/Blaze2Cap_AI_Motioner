@@ -1,3 +1,5 @@
+# pose_processing.py
+
 import numpy as np
 
 # ==========================================
@@ -53,16 +55,38 @@ def add_virtual_joints(raw_data):
 
     return np.concatenate([raw_data, neck[:, np.newaxis], mid_hip[:, np.newaxis]], axis=1)
 
-def get_alignment_angle(pos_data):
+def get_alignment_6d(pos_data):
     """
-    Calculates the angle of the hips in World XZ space.
-    This captures the 'Lost Orientation' before we canonicalize.
+    Calculates the 6D Rotation Representation of the Hip Alignment.
+    Constructs a rotation matrix where X-axis aligns with the vector (L_HIP -> R_HIP).
+    Output: (F, 6)
     """
+    # 1. Construct X-axis (Right Vector) from Hips
     # Vector from Left Hip to Right Hip
-    diff = pos_data[:, I_R_HIP] - pos_data[:, I_L_HIP]
-    # Angle in XZ plane (Top-down view)
-    angle = np.arctan2(diff[:, 2], diff[:, 0])
-    return np.sin(angle), np.cos(angle)
+    r_vec = pos_data[:, I_R_HIP] - pos_data[:, I_L_HIP] # (F, 3)
+    
+    # Normalize X
+    x_len = np.linalg.norm(r_vec, axis=1, keepdims=True) + 1e-8
+    x_axis = r_vec / x_len
+    
+    # 2. Construct Y-axis (Up Vector) - Assumed Global Y (0,1,0)
+    # We use global Y to keep the alignment planar (trajectory-like)
+    y_global = np.zeros_like(x_axis)
+    y_global[:, 1] = 1.0
+    
+    # 3. Construct Z-axis (Forward) via Cross Product
+    z_axis = np.cross(x_axis, y_global)
+    z_len = np.linalg.norm(z_axis, axis=1, keepdims=True) + 1e-8
+    z_axis = z_axis / z_len
+    
+    # 4. Re-orthogonalize Y-axis (Y = Z cross X)
+    y_axis = np.cross(z_axis, x_axis)
+    
+    # 5. Extract 6D Representation (First 2 columns: X and Y)
+    # Shape: (F, 6) -> [x_x, x_y, x_z, y_x, y_y, y_z]
+    feat_6d = np.concatenate([x_axis, y_axis], axis=1)
+    
+    return feat_6d
 
 def align_to_canonical_frame(pos_data):
     """
@@ -87,88 +111,67 @@ def align_to_canonical_frame(pos_data):
     pos_aligned = np.einsum('bjk,bkp->bjp', pos_data, rot_mat)
     return pos_aligned
 
+
 def process_blazepose_frames(raw_data, window_size):
     """
-    Extracts 19 Features:
-    - 12 for Canonical Pose (Indices 0-11)
-    - 2 for Metadata (Indices 12-13)
-    - 5 for View Context/Root Motion (Indices 14-18)
+    Extracts 20 Features (User Adjusted):
+    - 0-2: Canonical Pos (3)
+    - 3-5: Canonical Vel (3)
+    - 6-8: Parent Vec (3)
+    - 9-11: Child Vec (3)
+    - 12: Visibility (1)
+    - 13: Anchor (1)
+    - 14-19: Alignment 6D Rotation (6)
     """
     # 1. Add Virtual Joints -> (F, 27, 7)
     data_27 = add_virtual_joints(raw_data)
     
     pos_world = data_27[:, :, 0:3]
-    pos_screen = data_27[:, :, 3:5] 
     vis = data_27[:, :, 5:6]
     anchor = data_27[:, :, 6:7]
     
-    # Center World Data (MidHip becomes 0,0,0 for translation, but rotation remains)
+    # Center World Data
     root_pos = pos_world[:, I_MIDHIP:I_MIDHIP+1, :]
     pos_centered = pos_world - root_pos
     
-    # --- A. VIEW CONTEXT (Solving the Root Ambiguity) ---
-    # These features tell the model "Where am I facing?" and "How am I moving on screen?"
-    
-    # 1. Alignment Angle (2 Dims)
-    # Measures hip rotation in world space *before* canonicalization.
-    sin_a, cos_a = get_alignment_angle(pos_centered)
-    align_feat = np.stack([sin_a, cos_a], axis=1)[:, np.newaxis, :]
-    align_feat = np.repeat(align_feat, NUM_JOINTS, axis=1)
-    
-    # 2. Scale Change (1 Dim)
-    # Measures depth speed (Zoom).
-    screen_l_hip = pos_screen[:, I_L_HIP, :]
-    screen_r_hip = pos_screen[:, I_R_HIP, :]
-    width = np.linalg.norm(screen_l_hip - screen_r_hip, axis=1)
-    
-    scale_delta = np.zeros_like(width)
-    scale_delta[1:] = (width[1:] - width[:-1]) * 100.0 # Scale up for numeric stability
-    scale_feat = np.repeat(scale_delta[:, None, None], NUM_JOINTS, axis=1)
-    
-    # 3. Screen Velocity (2 Dims)
-    # Measures lateral speed.
-    s_vel = np.zeros_like(pos_screen[:, I_MIDHIP:I_MIDHIP+1, :])
-    s_vel[1:] = (pos_screen[1:, I_MIDHIP:I_MIDHIP+1, :] - pos_screen[:-1, I_MIDHIP:I_MIDHIP+1, :]) * 10.0
-    s_vel_feat = np.repeat(s_vel, NUM_JOINTS, axis=1)
+    # --- A. VIEW CONTEXT (Alignment 6D) ---
+    # Indices 14-19 (6 Dims)
+    # We calculate the hip alignment in 6D and broadcast it to all joints
+    align_6d = get_alignment_6d(pos_centered) # (F, 6)
+    align_feat = np.repeat(align_6d[:, np.newaxis, :], NUM_JOINTS, axis=1) # (F, 27, 6)
 
-    # --- B. CANONICAL POSE (Solving the Body) ---
-    # These features are "Cleaned" so the model learns pure pose structure.
-    
-    # 4. Canonical Pos (3 Dims) - Hips forced to Z=0
+    # --- B. CANONICAL POSE ---
+    # Indices 0-11
     pos_canonical = align_to_canonical_frame(pos_centered)
     
-    # 5. Local Velocity (3 Dims)
     vel_canonical = np.zeros_like(pos_canonical)
     vel_canonical[1:] = pos_canonical[1:] - pos_canonical[:-1]
     vel_canonical[anchor[:, 0, 0] == 0] = 0.0
     
-    # 6. Structure Vectors (6 Dims)
     parent_vecs = pos_canonical - pos_canonical[:, PARENTS]
     child_vecs = pos_canonical[:, CHILDREN] - pos_canonical
     
     leaf_mask = (CHILDREN == np.arange(NUM_JOINTS))
     child_vecs[:, leaf_mask, :] = parent_vecs[:, leaf_mask, :]
 
-    # --- C. STACK 19 FEATURES ---
+    # --- C. STACK 20 FEATURES ---
     features = np.concatenate([
-        pos_canonical,  # 3 (Pose)
-        vel_canonical,  # 3 (Pose Vel)
-        parent_vecs,    # 3 (Bone)
-        child_vecs,     # 3 (Bone)
-        vis,            # 1 (Meta)
-        anchor,         # 1 (Meta)
-        align_feat,     # 2 (Root Context)
-        s_vel_feat,     # 2 (Root Context)
-        scale_feat      # 1 (Root Context)
+        pos_canonical,  # 3 (0-2)
+        vel_canonical,  # 3 (3-5)
+        parent_vecs,    # 3 (6-8)
+        child_vecs,     # 3 (9-11)
+        vis,            # 1 (12)
+        anchor,         # 1 (13)
+        align_feat,     # 6 (14-19) - The Hip Ori 6D
     ], axis=2)
-    # Total: 3+3+3+3+1+1+2+2+1 = 19
+    # Total: 3+3+3+3+1+1+6 = 20
     
     # Windowing
     F, N = features.shape[0], window_size
     padded = np.concatenate([np.repeat(features[:1], N-1, axis=0), features], axis=0)
     s0, s1, s2 = padded.strides
     X_windows = np.lib.stride_tricks.as_strided(
-        padded, shape=(F, N, 27, 19), strides=(s0, s0, s1, s2)
+        padded, shape=(F, N, 27, 20), strides=(s0, s0, s1, s2)
     )
     
     M_masks = np.zeros((F, N), dtype=bool)

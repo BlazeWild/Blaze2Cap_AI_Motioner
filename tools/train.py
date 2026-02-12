@@ -48,7 +48,7 @@ CONFIG = {
     # Model Hyperparameters
     "num_joints_in": 27,    # 27 Input Joints
     "input_feats": 19,      # 19 Features (Pos, Vel, Par, Chi, Vis, Anc, Align, SVel, Scale)
-    "num_joints_out": 22,   # 22 Output Joints (Root + Body)
+    "num_joints_out": 21,   # 21 Output Joints (Root + Body)
     
     "d_model": 512,
     "num_layers": 6,        # Deep Model
@@ -131,11 +131,10 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
 
     N = len(loader)
     return {k: v / N for k, v in stats.items()}
-
 def validate(model, loader, device, epoch):
     """
     Uses the external evaluate_motion function to compute:
-    MPJPE (mm), Root Pos (mm), Root Rot (deg), Slide (mm)
+    MPJPE (mm), Root Rot (deg), Slide (mm)
     """
     model.eval()
     pbar = tqdm(loader, desc=f"Epoch {epoch} [VAL]")
@@ -159,7 +158,7 @@ def validate(model, loader, device, epoch):
                 metrics_sum[k] += v * B
             count += B
             
-            # Clean postfix
+            # Clean postfix (Removed RootPos)
             pbar.set_postfix({
                 "MPJPE": f"{batch_metrics['MPJPE']:.1f}",
                 "RotDeg": f"{batch_metrics.get('Root_Rot_Deg', 0):.1f}",
@@ -237,6 +236,14 @@ def main():
     last_step_index = (start_epoch - 1) * len(train_loader) - 1
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=CONFIG["lr"]*10, total_steps=total_steps, pct_start=CONFIG["warmup_pct"], last_epoch=last_step_index)
     
+    # Load scheduler state if available (Critical for OneCycleLR resume)
+    if os.path.exists(checkpoint_load_path) and 'scheduler_state_dict' in checkpoint:
+        try:
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            logger.info("✅ Scheduler state loaded.")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not load scheduler state: {e}")
+
     # 6. Loop
     for epoch in range(start_epoch, CONFIG["epochs"] + 1):
         logger.info(f"--- Epoch {epoch}/{CONFIG['epochs']} ---")
@@ -247,16 +254,31 @@ def main():
         
         # Validate
         metrics = validate(model, val_loader, device, epoch)
-        logger.info(f"[VAL] MPJPE: {metrics['MPJPE']:.2f}mm | RootPos: {metrics['Root_Pos_Err']:.2f}mm | RotDeg: {metrics['Root_Rot_Deg']:.2f}° | Slide: {metrics['Foot_Slide']:.2f}mm")
+        # UPDATED LOGGING: Removed RootPos
+        logger.info(f"[VAL] MPJPE: {metrics['MPJPE']:.2f}mm | RotDeg: {metrics.get('Root_Rot_Deg', 0):.2f}° | Slide: {metrics.get('Foot_Slide', 0):.2f}mm")
         
-        # Save
+        # --- ROBUST SAVING LOGIC ---
+        
+        # 1. Create Checkpoint (Include Scheduler!)
+        checkpoint = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(), 
+            'best_mpjpe': best_mpjpe
+        }
+        
+        # 2. Save "Latest" (Every Epoch)
+        latest_path = os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth")
+        torch.save(checkpoint, latest_path)
+        logger.info(f"💾 Epoch {epoch} checkpoint saved.")
+        
+        # 3. Save "Best" (Conditional)
         if metrics['MPJPE'] < best_mpjpe:
             best_mpjpe = metrics['MPJPE']
-            torch.save({'epoch': epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 'best_mpjpe': best_mpjpe}, os.path.join(CONFIG["save_dir"], "best_model.pth"))
-            logger.info(f"⭐ New Best Model Saved!")
-
-        if epoch % 5 == 0: 
-            torch.save({'epoch': epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 'best_mpjpe': best_mpjpe}, os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth"))
+            best_path = os.path.join(CONFIG["save_dir"], "best_model.pth")
+            torch.save(checkpoint, best_path)
+            logger.info(f"⭐ New Best Model Saved! ({best_mpjpe:.2f}mm)")
 
 if __name__ == "__main__":
     os.makedirs(CONFIG["save_dir"], exist_ok=True)

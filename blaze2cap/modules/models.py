@@ -2,8 +2,7 @@ import torch
 import torch.nn as nn
 import math
 
-# ... (Keep LayerNorm, QuickGELU, FeedForward, CausalSelfAttention, TransformerBlock, TemporalTransfomerEncoder, PositionalEncoding as before) ...
-# (Copy them from previous responses or keep your existing ones, they are fine)
+# --- LAYERS (Standard Transformer Components) ---
 
 class LayerNorm(nn.Module):
     def __init__(self, normalized_shape, eps=1e-5):
@@ -70,19 +69,25 @@ class PositionalEncoding(nn.Module):
     def forward(self, x): return x + self.pe[:, :x.size(1), :]
 
 # --- MAIN MODEL ---
+
 class MotionTransformer(nn.Module):
     """
-    Split-Head Transformer.
-    Input: 27 Joints * 19 Feats
-    Output: 22 Joints * 6 Feats
-      - Idx 0: Root Lin Vel [vx, vy, vz, 0, 0, 0]
-      - Idx 1: Root Ang Vel [6D Rot]
-      - Idx 2-21: Body Rot [6D Rot]
+    Blaze2Cap Motion Transformer.
+    
+    Inputs:
+      - 27 Joints (BlazePose + Virtual)
+      - 20 Features (Canonical Pose + 6D Alignment)
+      
+    Outputs:
+      - 21 Joints (TotalCapture subset, excluding World Root)
+      - 6 Features (6D Rotation)
+        * Index 0: Hip/Pelvis Orientation Delta
+        * Index 1-20: Body Joint Rotations
     """
     def __init__(self, 
                  num_joints=27, 
-                 input_feats=19, # Corrected Default
-                 num_joints_out=22, # Corrected Default (Includes Root)
+                 input_feats=20, # UPDATED: 20 features
+                 num_joints_out=21, # UPDATED: 21 output joints (Index 0=Hip, 1-20=Body)
                  d_model=512, 
                  num_layers=6, 
                  n_head=8, 
@@ -91,53 +96,50 @@ class MotionTransformer(nn.Module):
                  max_len=512):
         super().__init__()
         
-        # Input Projection
+        # 1. Input Projection
+        # Flattens (Batch, Time, 27*20) -> (Batch, Time, d_model)
         self.input_projection = nn.Linear(num_joints * input_feats, d_model)
         self.dropout_input = nn.Dropout(dropout)
         self.pos_encoder = PositionalEncoding(d_model, max_len=max_len)
         
-        # Encoder
+        # 2. Encoder
         self.encoder = TemporalTransfomerEncoder(num_layers, d_model, n_head, d_ff, dropout)
         
-        # --- SPLIT HEADS ---
+        # 3. Output Heads (Split)
         
-        # Head A: Root Motion (Predicts 3 LinVel + 6 AngVel = 9 values)
-        self.head_root = nn.Linear(d_model, 9)
+        # Head A: Hip Orientation (Index 0)
+        # Predicts 6 values (1 Joint * 6D)
+        self.head_hip = nn.Linear(d_model, 6)
         
-        # Head B: Body Motion (Predicts 20 joints * 6D Rot = 120 values)
+        # Head B: Body Pose (Indices 1-20)
+        # Predicts 120 values (20 Joints * 6D)
         self.head_body = nn.Linear(d_model, 20 * 6)
 
     def forward(self, x):
         B, S = x.shape[0], x.shape[1]
         
-        # Flatten Input
+        # Flatten Input: (B, S, 27, 20) -> (B, S, 540)
         if x.dim() == 4: x = x.view(B, S, -1)
         
-        # Encode
+        # Input Embedding
         x = self.input_projection(x)
         x = self.pos_encoder(x)
         x = self.dropout_input(x)
+        
+        # Transformer Pass
         latent = self.encoder(x) # [B, S, d_model]
         
-        # --- DECODE ROOT ---
-        root_raw = self.head_root(latent) # [B, S, 9]
+        # --- DECODE HEADS ---
         
-        # Split: [vx, vy, vz] and [rot_6d]
-        pred_lin_vel = root_raw[:, :, 0:3] 
-        pred_ang_vel = root_raw[:, :, 3:9]
+        # 1. Hip Head -> (B, S, 6) -> Reshape to (B, S, 1, 6)
+        hip_out = self.head_hip(latent).view(B, S, 1, 6)
         
-        # Pad LinVel to 6D: [vx, vy, vz, 0, 0, 0]
-        pad_zeros = torch.zeros_like(pred_lin_vel)
-        root_lin_vel_6d = torch.cat([pred_lin_vel, pad_zeros], dim=2) # [B, S, 6]
-        
-        # Stack Root: Index 0 (Lin), Index 1 (Ang) -> [B, S, 2, 6]
-        root_out = torch.stack([root_lin_vel_6d, pred_ang_vel], dim=2)
-        
-        # --- DECODE BODY ---
-        body_out = self.head_body(latent).view(B, S, 20, 6) # [B, S, 20, 6]
+        # 2. Body Head -> (B, S, 120) -> Reshape to (B, S, 20, 6)
+        body_out = self.head_body(latent).view(B, S, 20, 6)
         
         # --- CONCATENATE ---
-        # Final Output: [B, S, 22, 6]
-        full_out = torch.cat([root_out, body_out], dim=2)
+        # Final Output: [B, S, 21, 6]
+        # Index 0 is Hip, Indices 1-20 are Body
+        full_out = torch.cat([hip_out, body_out], dim=2)
         
         return full_out

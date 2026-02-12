@@ -1,3 +1,4 @@
+# data_loader.py
 import os
 import json
 import numpy as np
@@ -7,7 +8,6 @@ from torch.utils import data
 # --- STANDARD IMPORT ---
 # This matches the final 'pose_processing.py' we just created.
 from blaze2cap.modules.pose_processing import process_blazepose_frames
-
 class PoseSequenceDataset(data.Dataset):
     def __init__(self, dataset_root, window_size, split="train", max_windows=None):
         self.dataset_root = dataset_root
@@ -33,43 +33,45 @@ class PoseSequenceDataset(data.Dataset):
         input_path = os.path.join(self.dataset_root, item["source"])
         target_path = os.path.join(self.dataset_root, item["target"])
         
-        # Load Data (Use float32 for PyTorch compatibility)
+        # Load Data
         input_data = np.nan_to_num(np.load(input_path).astype(np.float32))
         gt_data = np.nan_to_num(np.load(target_path).astype(np.float32))
         
         # Ensure lengths match exactly
         min_len = min(len(input_data), len(gt_data))
         
-        # 1. PROCESS INPUT -> (F, N, 27, 19)
-        # This calls our new logic (Canonical Pose + View Context Features)
+        # 1. PROCESS INPUT -> (F, N, 27, 20)
+        # Uses new logic (20 features including 6D alignment)
         X_windows, M_masks = process_blazepose_frames(input_data[:min_len], self.window_size)
         
-        # 2. PROCESS TARGET -> (F, N, 22, 6)
-        # We must manually window the GT to match the Input's windowing
+        # 2. PROCESS TARGET -> (F, N, 21, 6)
+        # Original GT (22, 6): Index 0=Pos, 1=Rot, 2-21=Body
+        # New Request: Index 0=HipOri(Rot), 1-20=Body. Total 21.
+        
+        # A. Slice GT to remove Position (Index 0)
+        # Shape becomes (min_len, 21, 6)
+        Y_sliced = gt_data[:min_len, 1:, :] 
+        
+        # B. Flatten for stride tricks -> (min_len, 126)
+        # 21 joints * 6 dims = 126
+        Y_flat = Y_sliced.reshape(min_len, -1) 
+        
         N = self.window_size
         
-        # A. Flatten Joint & Data dims: (F, 22, 6) -> (F, 132)
-        # This is required because stride_tricks works best on 2D arrays
-        Y_flat = gt_data[:min_len].reshape(min_len, -1) 
-        
-        # B. Padding (Replicate first frame N-1 times)
-        # This aligns with the padding done inside process_blazepose_frames
+        # C. Padding
         pad_gt = np.repeat(Y_flat[0:1], N-1, axis=0)
         full_gt = np.concatenate([pad_gt, Y_flat], axis=0)
         
-        # C. Stride Tricks to create Windows
+        # D. Stride Tricks -> (F, N, 126)
         s0, s1 = full_gt.strides
-        # Output shape: (F, N, 132)
         Y_windows_flat = np.lib.stride_tricks.as_strided(
-            full_gt, shape=(min_len, N, 132), strides=(s0, s0, s1)
+            full_gt, shape=(min_len, N, 126), strides=(s0, s0, s1)
         )
         
-        # D. Reshape back to 6D Rotation format
-        # Output shape: (F, N, 22, 6)
-        Y_windows = Y_windows_flat.reshape(min_len, N, 22, 6)
+        # E. Reshape -> (F, N, 21, 6)
+        Y_windows = Y_windows_flat.reshape(min_len, N, 21, 6)
         
-        # 3. SUBSAMPLING (Optional)
-        # Used for debugging or faster training epochs
+        # 3. SUBSAMPLING
         if self.max_windows is not None and len(X_windows) > self.max_windows:
             indices = np.linspace(0, len(X_windows)-1, self.max_windows, dtype=int)
             X_windows = X_windows[indices]
