@@ -11,24 +11,19 @@ class MotionLoss(nn.Module):
     State-of-the-Art Hybrid Loss for 22-Joint Motion Prediction.
     
     Structure:
-    - Index 0: Root Position Delta [dx, dy, dz, 0, 0, 0]
-    - Index 1: Root Rotation Delta [6D]
-    - Index 2-21: Body Local Rotations [6D]
-    
-    Objectives:
-    1. Trajectory Accuracy (Root Loss)
-    2. Pose Accuracy (MPJPE via Forward Kinematics)
-    3. Physical Realism (Floor, Contact, Smoothness)
+    - Index 0: Root Position Delta [dx, dy, dz, 0, 0, 0] (Local Space)
+    - Index 1: Root Rotation Delta [6D] (Local Space)
+    - Index 2-21: Body Local Rotations [6D] (Parent-Relative)
     """
     def __init__(self, 
-                 lambda_root=5.0,     # High priority on trajectory
-                 lambda_rot=1.0,      # Local joint rotation consistency
-                 lambda_pos=2.0,      # FK Position accuracy (MPJPE)
-                 lambda_vel=1.0,      # Velocity matching
-                 lambda_smooth=0.5,   # Acceleration/Jitter penalty
-                 lambda_contact=2.0,  # Foot sliding penalty
-                 lambda_floor=2.0,    # Floor penetration penalty
-                 lambda_tilt=1.0):    # Spine stability
+                 lambda_root=5.0,     # Trajectory (Critical)
+                 lambda_rot=1.0,      # Pose Structure (Rotations)
+                 lambda_pos=2.0,      # Pose Shape (MPJPE)
+                 lambda_vel=1.0,      # Smoothness
+                 lambda_smooth=0.5,   # Anti-Jitter
+                 lambda_contact=2.0,  # Anti-Skate
+                 lambda_floor=2.0,    # Anti-Clipping
+                 lambda_tilt=1.0):    # Upright Constraint
         super().__init__()
         
         self.lambdas = {
@@ -38,14 +33,13 @@ class MotionLoss(nn.Module):
         }
         self.mse = nn.MSELoss()
         
-        # Load Skeleton Topology
+        # Load Topology
         skel = get_totalcapture_skeleton()
-        # Ensure these match the 22-joint hierarchy (0=Hips, 2=Spine, 16=RUpLeg, 19=LUpLeg)
         self.register_buffer('parents', torch.tensor(skel['parents'], dtype=torch.long))
         self.register_buffer('offsets', skel['offsets'].float())
         
-        # Indices for Feet in the 22-joint array
-        # RightFoot=18, LeftFoot=21
+        # Feet Indices (TotalCapture 22-joint rig)
+        # 18: RightFoot, 21: LeftFoot
         self.feet_indices = [18, 21]
         self.spine_index = 2
 
@@ -60,52 +54,51 @@ class MotionLoss(nn.Module):
 
     def _run_canonical_fk(self, full_output):
         """
-        Computes Forward Kinematics for MPJPE Calculation.
+        Runs Forward Kinematics to get 3D Joint Positions.
         
-        CRITICAL: We calculate 'Canonical' Pose.
-        - We FORCE the Root (Index 0) to be at (0,0,0) with Identity Rotation.
-        - We apply the Body Rotations (2-21) relative to this fixed root.
+        STRATEGY: "Canonical Pose"
+        We deliberately FORCE the Root to be at (0,0,0) with Identity Rotation.
         
-        This isolates 'Pose Quality' from 'Trajectory Error'.
+        WHY?
+        1. MPJPE must measure BODY SHAPE errors, not Room Position errors.
+        2. If we included Root Transforms here, a small rotation error at the hip
+           would look like a massive position error at the hand, confusing the gradient.
+        3. We learn Root Trajectory separately via 'l_root'.
         """
         B, S, J, C = full_output.shape
         device = full_output.device
         
-        # 1. Convert all 6D outputs to Matrices
-        # Shape: (B, S, 22, 3, 3)
+        # 1. Convert all 6D outputs to Rotation Matrices
         rot_mats = self._cont6d_to_mat(full_output) 
         
-        # 2. Prepare Global Buffers
+        # 2. Prepare Buffers
         global_rots = [None] * 22
         global_pos = [None] * 22
         
-        # 3. ROOT SETUP (Indices 0 & 1)
-        # We FORCE Canonical Frame for MPJPE:
-        # Root Position (0) = 0,0,0
-        # Root Rotation (0) = Identity
+        # 3. ROOT SETUP (Force Canonical)
+        # Root (0) and Virtual Root (1) are locked to Identity/Zero.
         eye = torch.eye(3, device=device).view(1, 1, 3, 3).expand(B, S, 3, 3)
         zeros = torch.zeros((B, S, 3), device=device)
         
-        # Hips are Index 0 in hierarchy
         global_rots[0] = eye
         global_pos[0] = zeros
         
-        # Index 1 is usually "Hips Rotation" or a virtual root node in some BVH.
-        # If your hierarchy says 1 is child of 0:
-        p1 = self.parents[1].item() # Should be 0
-        global_rots[1] = torch.matmul(global_rots[p1], rot_mats[:, :, 1])
+        # Handle Index 1 (often same as root or small offset)
+        p1 = self.parents[1].item()
+        # Even for Index 1, we ignore the predicted rotation delta here to keep the "Pose" stationary
+        global_rots[1] = eye 
         off1 = self.offsets[1].view(1, 1, 3, 1)
         global_pos[1] = global_pos[p1] + torch.matmul(global_rots[p1], off1).squeeze(-1)
 
         # 4. BODY FK LOOP (Indices 2 to 21)
+        # Only these joints reflect the actual body posture
         for i in range(2, 22):
             p = self.parents[i].item()
             local_rot = rot_mats[:, :, i]
             
-            # Global Rotation = Parent Global * Local
+            # Standard FK Math
             global_rots[i] = torch.matmul(global_rots[p], local_rot)
             
-            # Global Pos = Parent Pos + (Parent Global Rot * Offset)
             off = self.offsets[i].view(1, 1, 3, 1)
             rot_off = torch.matmul(global_rots[p], off).squeeze(-1)
             global_pos[i] = global_pos[p] + rot_off
@@ -114,78 +107,71 @@ class MotionLoss(nn.Module):
 
     def forward(self, pred_full, target_full, mask=None):
         """
-        Inputs: (B, S, 22, 6)
+        Calculates total loss.
+        pred_full: (B, S, 22, 6)
         """
-        # --- 1. ROOT LOSS (Trajectory) ---
-        # Index 0: Position Delta (only first 3 dims matter)
-        pred_root_pos_delta = pred_full[:, :, 0, :3]
-        gt_root_pos_delta   = target_full[:, :, 0, :3]
+        # --- 1. TRAJECTORY LOSS (Direct Regression) ---
+        # The model must learn the exact Local Delta values.
+        # Index 0: Position Delta [dx, dy, dz]
+        l_root_pos = self.mse(pred_full[:, :, 0, :3], target_full[:, :, 0, :3])
+        # Index 1: Rotation Delta [6D]
+        l_root_rot = self.mse(pred_full[:, :, 1, :], target_full[:, :, 1, :])
         
-        # Index 1: Rotation Delta (all 6 dims matter)
-        pred_root_rot_delta = pred_full[:, :, 1, :]
-        gt_root_rot_delta   = target_full[:, :, 1, :]
-        
-        l_root_pos = self.mse(pred_root_pos_delta, gt_root_pos_delta)
-        l_root_rot = self.mse(pred_root_rot_delta, gt_root_rot_delta)
-        
-        # Combined Root Loss (Heavily weighted to fix "random walking")
         l_root = l_root_pos + l_root_rot
 
-        # --- 2. BODY ROTATION LOSS (Local Structure) ---
-        # Indices 2-21
+        # --- 2. ROTATION CONSISTENCY (Body) ---
+        # Direct supervision on 6D features for indices 2-21
         l_rot = self.mse(pred_full[:, :, 2:], target_full[:, :, 2:])
 
-        # --- 3. MPJPE (Pose Position Error) ---
-        # Run FK to get 3D coordinates (Canonical Frame)
+        # --- 3. MPJPE (Pose Shape) ---
+        # Convert to 3D points (Canonical Frame) and compare
         pred_pos = self._run_canonical_fk(pred_full)
         gt_pos = self._run_canonical_fk(target_full)
         
         l_pos = self.mse(pred_pos, gt_pos)
 
-        # --- 4. DYNAMICS & PHYSICS ---
-        # Velocity (Smoothness over time)
+        # --- 4. DYNAMICS (Velocity/Accel) ---
+        # Ensures smooth animation
         pred_vel = pred_pos[:, 1:] - pred_pos[:, :-1]
         gt_vel = gt_pos[:, 1:] - gt_pos[:, :-1]
         l_vel = self.mse(pred_vel, gt_vel)
         
-        # Acceleration (Anti-Jitter)
         pred_acc = pred_vel[:, 1:] - pred_vel[:, :-1]
         gt_acc = gt_vel[:, 1:] - gt_vel[:, :-1]
         l_smooth = self.mse(pred_acc, gt_acc)
+
+        # --- 5. PHYSICS CONSTRAINTS ---
         
-        # Floor Penetration (Anti-Clipping)
-        # Check if feet go below GT feet level (simplistic floor check)
+        # A. Floor Loss
+        # In Canonical Frame (Root=0), feet should match GT height relative to root.
         l_floor = torch.tensor(0.0, device=pred_full.device)
         if self.lambdas["floor"] > 0:
-            pred_feet_y = pred_pos[:, :, self.feet_indices, 1] # Y is Up
-            # Penalize if pred is significantly lower than -0.05m (approx ground)
-            # Or simplified: Match GT floor interaction
+            pred_feet_y = pred_pos[:, :, self.feet_indices, 1] 
             gt_feet_y = gt_pos[:, :, self.feet_indices, 1]
             l_floor = self.mse(pred_feet_y, gt_feet_y)
 
-        # Foot Contact (Anti-Sliding)
+        # B. Foot Contact (Anti-Skate)
+        # If GT says foot is planted (vel=0), Pred foot vel must be 0.
         l_contact = torch.tensor(0.0, device=pred_full.device)
         if self.lambdas["contact"] > 0:
-            # If GT foot velocity is near zero, Pred foot velocity must be zero
             gt_feet_vel = gt_vel[:, :, self.feet_indices, :]
             pred_feet_vel = pred_vel[:, :, self.feet_indices, :]
             
-            # Mask: 1 if foot is planted, 0 if moving
+            # Strictly plant feet if GT speed is < 5mm/frame
             is_planted = (torch.norm(gt_feet_vel, dim=-1) < 0.005).float()
-            
-            # Loss = Pred Velocity * Planted Mask
             l_contact = (torch.norm(pred_feet_vel, dim=-1) * is_planted).mean()
 
-        # Spine Tilt (Upright Stability)
+        # C. Spine Tilt
+        # Keep spine upright if GT is upright
         l_tilt = torch.tensor(0.0, device=pred_full.device)
         if self.lambdas["tilt"] > 0:
-            pred_spine_rot = self._cont6d_to_mat(pred_full[:, :, self.spine_index])
-            gt_spine_rot = self._cont6d_to_mat(target_full[:, :, self.spine_index])
-            up_vec = torch.tensor([0., 1., 0.], device=pred_full.device).view(1, 1, 3, 1)
-            l_tilt = self.mse(torch.matmul(pred_spine_rot, up_vec), torch.matmul(gt_spine_rot, up_vec))
+            pred_spine = self._cont6d_to_mat(pred_full[:, :, self.spine_index])
+            gt_spine = self._cont6d_to_mat(target_full[:, :, self.spine_index])
+            up = torch.tensor([0., 1., 0.], device=pred_full.device).view(1, 1, 3, 1)
+            l_tilt = self.mse(torch.matmul(pred_spine, up), torch.matmul(gt_spine, up))
 
-        # --- TOTAL WEIGHTED LOSS ---
-        total_loss = (
+        # --- TOTAL ---
+        loss = (
             self.lambdas["root"] * l_root +
             self.lambdas["rot"] * l_rot +
             self.lambdas["pos"] * l_pos +
@@ -196,8 +182,7 @@ class MotionLoss(nn.Module):
             self.lambdas["tilt"] * l_tilt
         )
         
-        # Return Dict for Logging
-        return total_loss, {
+        return loss, {
             "l_root": l_root.item(),
             "l_mpjpe": l_pos.item(),
             "l_rot": l_rot.item(),

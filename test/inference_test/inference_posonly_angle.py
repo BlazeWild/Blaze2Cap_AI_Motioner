@@ -25,6 +25,7 @@ except ImportError as e:
     sys.exit(1)
 
 # --- CONFIGURATION ---
+# INPUT_FILE ="/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazepose_final/S5/rom3/cam1/blazepose_S5_rom3_cam1_seg0_s1_o0.npy"
 INPUT_FILE ="/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazepose_final/S5/rom3/cam1/blazepose_S5_rom3_cam1_seg0_s1_o0.npy"
 CHECKPOINT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/checkpoint_epoch49_poseonly_angle.pth"
 

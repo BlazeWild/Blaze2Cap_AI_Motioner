@@ -41,33 +41,35 @@ class MotionEvaluator(nn.Module):
         pred_pos = self.loss_helper._run_canonical_fk(pred_full) # (B, S, 22, 3)
         gt_pos = self.loss_helper._run_canonical_fk(target_full)
         
-        # Exclude Root (Index 0) and Virtual Root (Index 1) from average if desired,
-        # but usually MPJPE averages all body joints. 
-        # We look at indices 2-21 (Actual Body).
+        # Exclude Root (Index 0) and Virtual Root (Index 1) from average
         diff = pred_pos[:, :, 2:] - gt_pos[:, :, 2:] # (B, S, 20, 3)
         dist = torch.norm(diff, dim=-1) # (B, S, 20)
         metrics["MPJPE"] = dist.mean().item() * 1000.0 # mm
 
         # --- 2. ROOT ACCURACY (Trajectory) ---
-        # Root Linear Velocity Error (Index 0)
+        
+        # A. Linear Velocity Error (Index 0)
         pred_root_lin = pred_full[:, :, 0, :3]
         gt_root_lin   = target_full[:, :, 0, :3]
         root_pos_err = torch.norm(pred_root_lin - gt_root_lin, dim=-1)
         metrics["Root_Pos_Err"] = root_pos_err.mean().item() * 1000.0 # mm per frame
 
-        # Root Angular Velocity Error (Index 1) - MAE on 6D features
-        pred_root_ang = pred_full[:, :, 1, :]
-        gt_root_ang   = target_full[:, :, 1, :]
-        metrics["Root_Rot_Err"] = torch.mean(torch.abs(pred_root_ang - gt_root_ang)).item()
+        # B. Angular Velocity Error (Index 1) - Converted to Degrees
+        pred_root_rot = self.loss_helper._cont6d_to_mat(pred_full[:, :, 1, :])
+        gt_root_rot   = self.loss_helper._cont6d_to_mat(target_full[:, :, 1, :])
+        
+        # Calculate relative rotation matrix: R_diff = R_pred * R_gt^T
+        # Trace of R_diff relates to angle: tr(R) = 1 + 2cos(theta)
+        r_diff = torch.matmul(pred_root_rot, gt_root_rot.transpose(-1, -2))
+        trace = r_diff.diagonal(dim1=-2, dim2=-1).sum(-1)
+        cos_theta = (trace - 1) / 2
+        cos_theta = torch.clamp(cos_theta, -1.0, 1.0) # Numerical stability
+        angle_err_rad = torch.acos(cos_theta)
+        metrics["Root_Rot_Deg"] = torch.mean(torch.abs(angle_err_rad)).item() * (180.0 / np.pi)
 
         # --- 3. PHYSICAL REALISM ---
         
         # A. Jitter (Acceleration)
-        # 2nd derivative of position. High values = shaking.
-        # We calculate "Jitter Error": |Pred_Acc - GT_Acc| isn't useful. 
-        # We want the raw magnitude of Pred Acceleration to see if it's shaking.
-        # But usually, we compare to GT to see if we are 'smoother' or 'noisier' than GT.
-        # Standard metric: Mean Acceleration Difference
         pred_vel = pred_pos[:, 1:] - pred_pos[:, :-1]
         gt_vel = gt_pos[:, 1:] - gt_pos[:, :-1]
         
@@ -78,16 +80,12 @@ class MotionEvaluator(nn.Module):
         metrics["Accel_Err"] = accel_dist.mean().item() * 1000.0 # mm/s^2 error
 
         # B. Foot Skating (Sliding)
-        # Definition: How much does the foot move when it should be planted?
-        # GT Planted Condition: GT Foot Velocity < 5mm/frame
         gt_feet_vel = gt_vel[:, :, self.feet_indices, :]
         pred_feet_vel = pred_vel[:, :, self.feet_indices, :]
         
         # Boolean Mask (1 = Planted)
         is_planted = (torch.norm(gt_feet_vel, dim=-1) < 0.005)
         
-        # Calculate Slide: Magnitude of Pred Velocity * Mask
-        # If no frames are planted, return 0 to avoid NaN
         if is_planted.sum() > 0:
             slide_magnitude = torch.norm(pred_feet_vel, dim=-1)[is_planted]
             metrics["Foot_Slide"] = slide_magnitude.mean().item() * 1000.0 # mm of slip
@@ -102,7 +100,6 @@ def evaluate_motion(predictions, targets):
     predictions: (B, S, 22, 6)
     targets: (B, S, 22, 6)
     """
-    # Create evaluator on the fly (lightweight)
     evaluator = MotionEvaluator()
     evaluator.to(predictions.device)
     
