@@ -47,7 +47,7 @@ CONFIG = {
     
     # Model Hyperparameters
     "num_joints_in": 27,    # 27 Input Joints
-    "input_feats": 19,      # 19 Features (Pos, Vel, Par, Chi, Vis, Anc, Align, SVel, Scale)
+    "input_feats": 20,      # 19 Features (Pos, Vel, Par, Chi, Vis, Anc, Align, SVel, Scale)
     "num_joints_out": 21,   # 21 Output Joints (Root + Body)
     
     "d_model": 512,
@@ -86,6 +86,7 @@ CONFIG = {
 }
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, device, epoch):
     model.train()
     stats = defaultdict(float)
@@ -105,13 +106,13 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
             preds = model(src)
             loss, loss_logs = criterion(preds, tgt_rot)
             
-            # Divide loss by accumulation steps to normalize gradients
+            # Divide loss by accumulation steps
             loss = loss / CONFIG["accumulation_steps"]
             
             if not torch.isfinite(loss):
                 continue
 
-        # Backward (Accumulate Gradients)
+        # Backward
         scaler.scale(loss).backward()
         
         # Step Optimizer (Only every N batches)
@@ -119,14 +120,22 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), CONFIG["gradient_clip"])
             
+            # Check scale before step to detect skips
+            scale_before = scaler.get_scale()
+            
             scaler.step(optimizer)
             scaler.update()
-            scheduler.step()
             
-            # Reset gradients only after step
+            # FIX: Only step scheduler if scaler didn't skip the optimizer step
+            # (If scale decreased, it means Infs were found and step was skipped)
+            scale_after = scaler.get_scale()
+            if scale_after >= scale_before:
+                scheduler.step()
+            
+            # Reset gradients
             optimizer.zero_grad(set_to_none=True)
         
-        # Logging (Multiply loss back by steps for correct display)
+        # Logging
         current_loss = loss.item() * CONFIG["accumulation_steps"]
         stats["loss"] += current_loss
         for k, v in loss_logs.items():
