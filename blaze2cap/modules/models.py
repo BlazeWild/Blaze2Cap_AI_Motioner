@@ -1,26 +1,18 @@
-# models.py
-
 import torch
 import torch.nn as nn
 import math
 
+# ... (Keep LayerNorm, QuickGELU, FeedForward, CausalSelfAttention, TransformerBlock, TemporalTransfomerEncoder, PositionalEncoding as before) ...
+# (Copy them from previous responses or keep your existing ones, they are fine)
+
 class LayerNorm(nn.Module):
-    """
-    Standard LayerNorm. 
-    Note: PyTorch's native nn.LayerNorm already handles mixed precision (autocast) 
-    correctly in recent versions. We don't need to force float32 manually unless 
-    you are on very old hardware. Using standard implementation for speed.
-    """
     def __init__(self, normalized_shape, eps=1e-5):
         super().__init__()
         self.layer_norm = nn.LayerNorm(normalized_shape, eps=eps)
-
-    def forward(self, x):
-        return self.layer_norm(x)
+    def forward(self, x): return self.layer_norm(x)
 
 class QuickGELU(nn.Module):
-    def forward(self, x):
-        return x * torch.sigmoid(1.702 * x)
+    def forward(self, x): return x * torch.sigmoid(1.702 * x)
 
 class FeedForward(nn.Module):
     def __init__(self, d_model, d_ff, dropout=0.1):
@@ -29,47 +21,20 @@ class FeedForward(nn.Module):
         self.activation = QuickGELU()
         self.dropout = nn.Dropout(dropout)
         self.w_2 = nn.Linear(d_ff, d_model)
-
-    def forward(self, x):
-        return self.w_2(self.dropout(self.activation(self.w_1(x))))
+    def forward(self, x): return self.w_2(self.dropout(self.activation(self.w_1(x))))
 
 class CausalSelfAttention(nn.Module):
-    """
-    Simplified Causal Attention.
-    REMOVED: Key Padding Mask logic (since we use repetition padding).
-    """
     def __init__(self, d_model, n_head, dropout=0.1):
         super().__init__()
         self.n_head = n_head
-        # batch_first=True expects [Batch, Seq, Feature]
-        self.attn = nn.MultiheadAttention(
-            embed_dim=d_model,
-            num_heads=n_head,
-            dropout=dropout,
-            batch_first=True 
-        )
+        self.attn = nn.MultiheadAttention(d_model, n_head, dropout=dropout, batch_first=True)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         B, N, C = x.shape
-        
-        # Create Causal Mask (Triangular)
-        # 1s on diagonal and below, -inf above.
-        # PyTorch MHA expects boolean mask where TRUE = IGNORE (Mask out)
-        # So we want Upper Triangle (excluding diagonal) to be True.
-        causal_mask = torch.triu(
-            torch.ones(N, N, device=x.device, dtype=torch.bool), diagonal=1
-        )
-
-        out, weights = self.attn(
-            query=x,
-            key=x,
-            value=x,
-            attn_mask=causal_mask,
-            need_weights=True,
-            is_causal=True # Optimization hint for PyTorch 2.0+
-        )
-        return self.dropout(out), weights
+        causal_mask = torch.triu(torch.ones(N, N, device=x.device, dtype=torch.bool), diagonal=1)
+        out, _ = self.attn(query=x, key=x, value=x, attn_mask=causal_mask, need_weights=False, is_causal=True)
+        return self.dropout(out)
 
 class TransformerBlock(nn.Module):
     def __init__(self, d_model, n_head, d_ff, dropout=0.1):
@@ -79,38 +44,19 @@ class TransformerBlock(nn.Module):
         self.norm2 = LayerNorm(d_model)
         self.mlp = FeedForward(d_model, d_ff, dropout)
         self.dropout = nn.Dropout(dropout)
-
     def forward(self, x):
-        # Pre-Norm Architecture (More stable for Motion)
-        x_norm = self.norm1(x)
-        attn_out, weights = self.attn(x_norm)
-        x = x + attn_out # Residual 1
-
-        x_norm = self.norm2(x)
-        mlp_out = self.mlp(x_norm)
-        x = x + self.dropout(mlp_out) # Residual 2
-        return x, weights
+        x = x + self.attn(self.norm1(x))
+        x = x + self.dropout(self.mlp(self.norm2(x)))
+        return x
 
 class TemporalTransfomerEncoder(nn.Module):
     def __init__(self, num_layers, d_model, n_head, d_ff, dropout=0.1):
         super().__init__()
-        self.layers = nn.ModuleList([
-            TransformerBlock(d_model, n_head, d_ff, dropout) for _ in range(num_layers)
-        ])
+        self.layers = nn.ModuleList([TransformerBlock(d_model, n_head, d_ff, dropout) for _ in range(num_layers)])
         self.norm_final = LayerNorm(d_model)
-
-    def forward(self, x, return_all_weights=False):
-        all_weights = []
-        for layer in self.layers:
-            x, weights = layer(x)
-            if return_all_weights:
-                all_weights.append(weights)
-        
-        x = self.norm_final(x)
-        
-        if return_all_weights:
-            return x, all_weights
-        return x
+    def forward(self, x):
+        for layer in self.layers: x = layer(x)
+        return self.norm_final(x)
 
 class PositionalEncoding(nn.Module):
     def __init__(self, d_model, max_len=5000):
@@ -121,98 +67,77 @@ class PositionalEncoding(nn.Module):
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         self.register_buffer('pe', pe.unsqueeze(0))
+    def forward(self, x): return x + self.pe[:, :x.size(1), :]
 
-    def forward(self, x):
-        # Slice to current sequence length
-        return x + self.pe[:, :x.size(1), :]
-
+# --- MAIN MODEL ---
 class MotionTransformer(nn.Module):
     """
-    Split-Head Transformer for Motion Prediction.
-    
-    Optimized Head Structure:
-    - Root Head: Predicts 9 values (3 Pos + 6 Rot) -> Pads to 12.
-    - Body Head: Predicts 120 values (20 joints * 6 Rot).
+    Split-Head Transformer.
+    Input: 27 Joints * 19 Feats
+    Output: 22 Joints * 6 Feats
+      - Idx 0: Root Lin Vel [vx, vy, vz, 0, 0, 0]
+      - Idx 1: Root Ang Vel [6D Rot]
+      - Idx 2-21: Body Rot [6D Rot]
     """
     def __init__(self, 
                  num_joints=27, 
-                 input_feats=18, 
-                 d_model=256, 
-                 num_layers=4, 
-                 n_head=4, 
-                 d_ff=512, 
+                 input_feats=19, # Corrected Default
+                 num_joints_out=22, # Corrected Default (Includes Root)
+                 d_model=512, 
+                 num_layers=6, 
+                 n_head=8, 
+                 d_ff=1024, 
                  dropout=0.1, 
-                 max_len=1024):
+                 max_len=512):
         super().__init__()
         
-        self.num_joints = num_joints
-        
-        # 1. Input Projection
-        # 27 * 18 = 486 features
-        input_dim = num_joints * input_feats
-        self.input_projection = nn.Linear(input_dim, d_model)
+        # Input Projection
+        self.input_projection = nn.Linear(num_joints * input_feats, d_model)
         self.dropout_input = nn.Dropout(dropout)
-        
-        # 2. Positional Encoding
         self.pos_encoder = PositionalEncoding(d_model, max_len=max_len)
         
-        # 3. Encoder Backbone
-        self.encoder = TemporalTransfomerEncoder(
-            num_layers=num_layers, 
-            d_model=d_model, 
-            n_head=n_head, 
-            d_ff=d_ff, 
-            dropout=dropout
-        )
+        # Encoder
+        self.encoder = TemporalTransfomerEncoder(num_layers, d_model, n_head, d_ff, dropout)
         
-        # 4. Split-Head Decoder
+        # --- SPLIT HEADS ---
         
-        # Head A: Root Trajectory 
-        # We only predict 9 REAL values:
-        # - 3 for Translation Delta (dx, dy, dz)
-        # - 6 for Rotation Delta (6D continuous)
-        # We will manually pad the Translation to 6 dims later.
-        self.head_root = nn.Linear(d_model, 9) 
+        # Head A: Root Motion (Predicts 3 LinVel + 6 AngVel = 9 values)
+        self.head_root = nn.Linear(d_model, 9)
         
-        # Head B: Body Pose 
-        # 20 joints * 6D rotation = 120 values
-        self.head_body = nn.Linear(d_model, 120)
+        # Head B: Body Motion (Predicts 20 joints * 6D Rot = 120 values)
+        self.head_body = nn.Linear(d_model, 20 * 6)
 
-    def forward(self, x, key_padding_mask=None):
-        # Extract dimensions
+    def forward(self, x):
         B, S = x.shape[0], x.shape[1]
-
-        # x shape: [Batch, Seq, 27, 18]
-        if x.dim() == 4:
-            x = x.view(B, S, -1) # Flatten -> [B, S, 486]
-
-        # 1. Project & Encode
+        
+        # Flatten Input
+        if x.dim() == 4: x = x.view(B, S, -1)
+        
+        # Encode
         x = self.input_projection(x)
         x = self.pos_encoder(x)
         x = self.dropout_input(x)
-        latent = self.encoder(x) # [B, S, 256]
+        latent = self.encoder(x) # [B, S, d_model]
         
-        # --- 2. Head A: Root Processing (The fix) ---
-        # Predict 9 values
+        # --- DECODE ROOT ---
         root_raw = self.head_root(latent) # [B, S, 9]
         
-        # Split into Position (3) and Rotation (6)
-        pred_pos_delta = root_raw[:, :, 0:3] # dx, dy, dz
-        pred_rot_delta = root_raw[:, :, 3:9] # 6D rotation
+        # Split: [vx, vy, vz] and [rot_6d]
+        pred_lin_vel = root_raw[:, :, 0:3] 
+        pred_ang_vel = root_raw[:, :, 3:9]
         
-        # Create Padding (0, 0, 0) for Position
-        # Use zeros_like to match device/dtype of input automatically
-        pad_zeros = torch.zeros_like(pred_pos_delta) 
+        # Pad LinVel to 6D: [vx, vy, vz, 0, 0, 0]
+        pad_zeros = torch.zeros_like(pred_lin_vel)
+        root_lin_vel_6d = torch.cat([pred_lin_vel, pad_zeros], dim=2) # [B, S, 6]
         
-        # Concatenate Position parts: [dx, dy, dz] + [0, 0, 0] -> [B, S, 6]
-        root_pos_final = torch.cat([pred_pos_delta, pad_zeros], dim=2)
+        # Stack Root: Index 0 (Lin), Index 1 (Ang) -> [B, S, 2, 6]
+        root_out = torch.stack([root_lin_vel_6d, pred_ang_vel], dim=2)
         
-        # Stack Position and Rotation: 
-        # [B, S, 6] (Pos) + [B, S, 6] (Rot) -> [B, S, 2, 6]
-        root_out = torch.stack([root_pos_final, pred_rot_delta], dim=2)
+        # --- DECODE BODY ---
+        body_out = self.head_body(latent).view(B, S, 20, 6) # [B, S, 20, 6]
         
-        # --- 3. Head B: Body Processing ---
-        # [B, S, 120] -> [B, S, 20, 6]
-        body_out = self.head_body(latent).view(B, S, 20, 6)
+        # --- CONCATENATE ---
+        # Final Output: [B, S, 22, 6]
+        full_out = torch.cat([root_out, body_out], dim=2)
         
-        return root_out, body_out
+        return full_out

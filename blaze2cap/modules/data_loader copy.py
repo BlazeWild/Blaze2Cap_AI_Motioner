@@ -1,11 +1,13 @@
+# data_loader.py
+
 import os
 import json
 import numpy as np
 import torch
 from torch.utils import data
 
-# IMPORT FROM POSE PROCESSING
-from blaze2cap.modules.pose_processing import process_blazepose_frames
+# IMPORT FROM THE NEW FILE
+from blaze2cap.modules.pose_processing_posonly import process_blazepose_frames
 
 class PoseSequenceDataset(data.Dataset):
     def __init__(self, dataset_root, window_size, split="train", max_windows=None):
@@ -17,20 +19,45 @@ class PoseSequenceDataset(data.Dataset):
         with open(json_path, 'r') as f:
             full_data = json.load(f)
             
+        # Filter samples
         self.samples = []
         candidates = [item for item in full_data if item.get(f"split_{split}", False)]
+        print(f"[{split.upper()}] Found {len(candidates)} candidate samples. Checking file existence...")
         
-        # Simple existence check
-        for item in candidates:
-             if self._is_valid(item):
-                 self.samples.append(item)
-        
-        print(f"[{split.upper()}] Loaded {len(self.samples)} valid samples.")
+        from tqdm import tqdm
+        invalid_count = 0
+        for item in tqdm(candidates, desc=f"Checking {split} files", unit="files"):
+            if self._is_valid(item):
+                self.samples.append(item)
+            else:
+                invalid_count += 1
+                
+        print(f"[{split.upper()}] Ready: {len(self.samples)} valid samples (filtered {invalid_count} invalid/missing).")
 
     def _is_valid(self, item):
-        src = os.path.join(self.dataset_root, item["source"])
-        tgt = os.path.join(self.dataset_root, item["target"])
-        return os.path.exists(src) and os.path.exists(tgt)
+        src_path = os.path.join(self.dataset_root, item["source"])
+        tgt_path = os.path.join(self.dataset_root, item["target"])
+        
+        if not os.path.exists(src_path) or not os.path.exists(tgt_path):
+            return False
+        
+        # Quick check: file size must be > 128 bytes (NPY header)
+        if os.path.getsize(src_path) < 128 or os.path.getsize(tgt_path) < 128:
+            return False
+            
+        try:
+            # Quick check using mmap without loading data
+            src_data = np.load(src_path, mmap_mode='r')
+            if src_data.shape[0] == 0:
+                return False
+                
+            tgt_data = np.load(tgt_path, mmap_mode='r')
+            if tgt_data.shape[0] == 0:
+                return False
+                
+            return True
+        except Exception:
+            return False
 
     def __len__(self):
         return len(self.samples)
@@ -41,7 +68,6 @@ class PoseSequenceDataset(data.Dataset):
         input_path = os.path.join(self.dataset_root, item["source"])
         target_path = os.path.join(self.dataset_root, item["target"])
         
-        # Load
         input_data = np.nan_to_num(np.load(input_path).astype(np.float32))
         gt_data = np.nan_to_num(np.load(target_path).astype(np.float32))
         
@@ -49,23 +75,20 @@ class PoseSequenceDataset(data.Dataset):
         input_data = input_data[:min_len]
         gt_data = gt_data[:min_len]
         
-        # 1. Process Input -> (F, 64, 27, 19)
-        # Using the new logic with 19 features
+        # Call the logic from the other file
         X, M = process_blazepose_frames(input_data, self.window_size)
         
-        # 2. Process Target -> (F, 64, 22, 6)
         N = self.window_size
         Y_flat = gt_data.reshape(min_len, -1)
         
         pad_gt = np.repeat(Y_flat[0:1], N-1, axis=0)
         full_gt = np.concatenate([pad_gt, Y_flat], axis=0)
         
-        s0, s1, s2 = full_gt.strides
+        strides_gt = (full_gt.strides[0], full_gt.strides[0], full_gt.strides[1])
         Y = np.lib.stride_tricks.as_strided(
-            full_gt, shape=(min_len, N, 22, 6), strides=(s0, s0, s1, s2)
+            full_gt, shape=(min_len, N, full_gt.shape[1]), strides=strides_gt
         )
         
-        # Subsample
         if self.max_windows is not None and len(X) > self.max_windows:
             indices = np.linspace(0, len(X)-1, self.max_windows, dtype=int)
             X = X[indices]

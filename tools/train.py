@@ -1,16 +1,17 @@
 """
-Blaze2Cap Training Script
-========================
-Train the MotionTransformer model to predict 3D skeletal motion from BlazePose landmarks.
-
-Usage:
-    cd Blaze2Cap_full
-    python -m tools.train
+Blaze2Cap Training Script (Canonical Rotation - 27 Joints)
+==========================================================
+State-of-the-Art Configuration for 6D Rotation Learning.
+Includes advanced Physics-based constraints (Contact, Floor, Tilt).
 """
 
 import os
 import sys
 import functools
+import logging
+import glob
+import re
+from collections import defaultdict
 
 # Add project root to path for imports
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,457 +20,328 @@ sys.path.insert(0, PROJECT_ROOT)
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-# from torch.cuda.amp import GradScaler, autocast # Deprecated in 2.4+
 from torch.amp import GradScaler, autocast
 from torchinfo import summary
 from tqdm import tqdm
-import numpy as np
-from collections import defaultdict
 
-# --- Blaze2Cap Modules (via __init__.py exports) ---
+# --- Blaze2Cap Modules ---
+# CRITICAL: Using the correct 27-joint/Rotation modules
 from blaze2cap.modules.models import MotionTransformer
 from blaze2cap.modules.data_loader import PoseSequenceDataset
-from blaze2cap.modeling.loss import MotionCorrectionLoss
-from blaze2cap.modeling.eval_motion import evaluate_motion, MotionEvaluator
+from blaze2cap.modeling.loss import MotionLoss
 from blaze2cap.utils.logging_ import setup_logging
-from blaze2cap.utils.checkpoint import save_checkpoint, load_checkpoint, auto_resume
-from blaze2cap.utils.train_utils import CudaPreFetcher, set_random_seed, Timer
-from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
+from blaze2cap.utils.train_utils import set_random_seed, Timer
 
 # --- OPTIMIZATION (RTX 4090) ---
-torch.set_float32_matmul_precision('high') # Enable TF32 for significantly faster FP32 matmuls
+torch.set_float32_matmul_precision('high') 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
-torch.backends.cudnn.benchmark = True # Enable CUDNN auto-tuner
+torch.backends.cudnn.benchmark = True 
 
-# --- CONFIGURATION (Optimized for RTX 4090 GPU - 24GB VRAM) ---
+# --- CONFIGURATION ---
 CONFIG = {
-    "experiment_name": "motion_transformer_RTX4090",
-    "data_root": "./blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset",
-    "save_dir": "./checkpoints",
-    "log_dir": "./logs",
+    "experiment_name": "canonical_rotation_27joints_deep",
+    "data_root": os.path.join(PROJECT_ROOT, "blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset"),
+    "save_dir": os.path.join(PROJECT_ROOT, "checkpoints"),
+    "log_dir": os.path.join(PROJECT_ROOT, "logs"),
     
-    # Model Hyperparameters (unchanged)
-    "num_joints": 27,
-    "input_feats": 18,
+    # Model Hyperparameters
+    "num_joints_in": 27,    # <--- CHANGED: Using full BlazePose (27 joints)
+    "input_feats": 19,      # <--- CHANGED: 19 Features [Pos(3), Vel(3), Par(3), Chi(3), Vis(1), Anc(1), Align(2), SVel(2), Scale(1)]
+    "num_joints_out": 22,   # 22 Output Body Joints (Rotations)
+    
     "d_model": 512,
-    "num_layers": 4,
+    "num_layers": 6,        # <--- DEEPER MODEL (Better for Rotation)
     "n_head": 8,
     "d_ff": 1024,
     "dropout": 0.1,
     "max_len": 512,
     
-    # Training Hyperparameters (RTX 4090 / L40S Optimized)
-    "batch_size": 32,         # Number of FILES to load per step
-    "num_workers": 6,         # Reduced workers to save overhead
-    "max_windows_per_sample": 64,  # takes random 64 sampled windows from each file, ensuring full diversity while fitting in memory
-    "lr": 1e-4,
-    "weight_decay": 0.01,
+    # Training
+    "batch_size": 32,       # Keep 32 for stability
+    "num_workers": 6,
+    "max_windows_train": 64, 
+    "lr": 1e-4,             
+    "weight_decay": 1e-4,
     "epochs": 150,
-    "window_size": 64, # window size.
+    "window_size": 64,
     "warmup_pct": 0.1,
     
-    # --- LOSS WEIGHTS ---
-    "lambda_root_vel": 1.0,
-    "lambda_root_rot": 2.0,    # Boosted: Orientation is critical
-    "lambda_pose_rot": 1.0,
-    "lambda_pose_pos": 4.0,    # Structure is King
-    "lambda_smooth": 10.0,
-    "lambda_accel": 20.0,
-
-    # --- NEW CONSTRAINTS (For Anti-Rocket/Drift) ---
-    "lambda_floor": 5.0,       # Floor Glue (Vertical Damping)
-    "lambda_tilt": 5.0,        # Gravity Consistency (Prevents random tipping)
-    "lambda_contact": 0.5,     # Anti-Slide (Sticky Feet)
+    # Loss Weights (Advanced Physics Constraints)
+    "lambda_rot": 3.0,        # <--- INCREASED: Prioritize Structure
+    "lambda_pos": 2.0,        # <--- BALANCED: Ensure FK validity
+    "lambda_vel": 1.0,        # Dynamics
+    "lambda_smooth": 0.5,     # Anti-Jitter (Increased from 0.1)
+    "lambda_contact": 2.0,    # Anti-Slide (Increased from 0.5)
+    "lambda_floor": 2.0,      # Anti-Clipping (NEW)
+    "lambda_tilt": 1.0,       # Spine Stability (NEW)
     
     # System
     "seed": 42,
     "device": "cuda" if torch.cuda.is_available() else "cpu",
     "use_amp": True,
-    "resume_checkpoint": "auto",
     "gradient_clip": 1.0,
 }
 
 # Fix fragmentation issues
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-
-def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, device, epoch, config):
+def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, device, epoch):
     """Train for one epoch with mixed precision support."""
     model.train()
-    timer = Timer()
-    
-    # Track all loss components
     stats = defaultdict(float)
     
-    # Use CudaPreFetcher for speed (only if CUDA available)
-    use_prefetcher = device == "cuda" and config.get("num_workers", 0) > 0
-    if use_prefetcher:
-        prefetcher = CudaPreFetcher(loader, device)
-        batch = next(prefetcher)
-        total_batches = len(loader)
-    else:
-        batch_iter = iter(loader)
-        batch = next(batch_iter, None)
-        total_batches = len(loader)
+    # Progress Bar with LR Logging
+    pbar = tqdm(loader, desc=f"Epoch {epoch} [TRAIN]")
     
-    pbar = tqdm(total=total_batches, desc=f"Epoch {epoch} [TRAIN]")
-    batch_idx = 0
-    
-    while batch is not None:
-        timer.tick("data_load")
+    for batch_idx, batch in enumerate(pbar):
+        # 1. Inputs
+        src = batch["source"].to(device, non_blocking=True) # (B, 64, 27, 19)
+        tgt_rot = batch["target"].to(device, non_blocking=True)
         
-        # 1. Unpack Batch and move to device (if not using prefetcher)
-        if not use_prefetcher:
-            # Optimize: use non_blocking=True for asynchronous transfer
-            batch = {k: v.to(device, non_blocking=True) if isinstance(v, torch.Tensor) else v 
-                     for k, v in batch.items()}
-        
-        src = batch["source"]
-        mask = batch["mask"]
-        tgt = batch["target"]
-
-        # 2. Forward Pass with Mixed Precision
-        # Optimize: set_to_none=True saves memory bandwidth
         optimizer.zero_grad(set_to_none=True)
         
-        with autocast('cuda', enabled=config["use_amp"] and device == "cuda"):
-            # Passing key_padding_mask=None ensures the model attends to ALL history (including padding).
-            preds = model(src, key_padding_mask=None)
-            timer.tick("forward")
+        # 2. Forward & Loss
+        with autocast('cuda', enabled=CONFIG["use_amp"]):
+            preds = model(src)
+            loss, loss_logs = criterion(preds, tgt_rot)
             
-            # 3. Compute Loss
-            loss_dict = criterion(preds, tgt, mask)
-            loss = loss_dict["loss"]
-        
-            # Skip step on non-finite loss
             if not torch.isfinite(loss):
-                if device == "cuda":
-                    torch.cuda.synchronize() # Only sync on error
-                # Log the error
-                import logging
-                logging.getLogger(__name__).warning(f"NaN/Inf loss detected at step {batch_idx}. Skipping.")
-                pbar.update(1)
-                pbar.set_postfix({"loss": "nan", "lr": f"{scheduler.get_last_lr()[0]:.2e}"})
-                if use_prefetcher:
-                    batch = next(prefetcher, None)
-                else:
-                    batch = next(batch_iter, None)
-                batch_idx += 1
                 continue
+
+        # 3. Backward
+        scaler.scale(loss).backward()
+        scaler.unscale_(optimizer)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), CONFIG["gradient_clip"])
+        scaler.step(optimizer)
+        scaler.update()
+        scheduler.step() # Step every batch for OneCycleLR
         
-        # 4. Backward Pass with Gradient Scaling
-        if config["use_amp"] and device == "cuda":
-            scaler.scale(loss).backward()
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config["gradient_clip"])
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=config["gradient_clip"])
-            optimizer.step()
-        
-        # 5. Scheduler
-        scheduler.step()
-        timer.tick("backward")
-        
-        # 6. Accumulate Stats
+        # 4. Logging
         stats["loss"] += loss.item()
-        for k, v in loss_dict.items():
-            if k != "loss":
-                stats[k] += v.item()
-        
-        # Next batch
-        if use_prefetcher:
-            batch = next(prefetcher, None)
-        else:
-            batch = next(batch_iter, None)
-        
-        batch_idx += 1
-        pbar.update(1)
+        for k, v in loss_logs.items():
+            stats[k] += v
+            
+        # Get Current LR
+        current_lr = scheduler.get_last_lr()[0]
+            
+        # Updated Postfix to show key metrics and LR
         pbar.set_postfix({
-            "loss": f"{loss.item():.4f}",
-            "lr": f"{scheduler.get_last_lr()[0]:.2e}"
+            "Loss": f"{loss.item():.4f}", 
+            "Rot": f"{loss_logs.get('l_rot', 0):.4f}",
+            "Pos": f"{loss_logs.get('l_mpjpe', 0):.4f}",
+            "Slide": f"{loss_logs.get('l_contact', 0):.4f}",
+            "LR": f"{current_lr:.2e}" 
         })
 
-    pbar.close()
-    
-    N = max(batch_idx, 1)
+    # Averages
+    N = len(loader)
     avg_stats = {k: v / N for k, v in stats.items()}
-    avg_stats["time_stats"] = timer.report()
     return avg_stats
 
-
-def collate_flatten_windows(batch, max_windows_per_sample=None):
-    """Concatenate variable-length window stacks across samples."""
-    if len(batch) == 0:
-        return {"source": torch.empty(0), "mask": torch.empty(0), "target": torch.empty(0)}
-
-    sources = []
-    masks = []
-    targets = []
-
-    for item in batch:
-        src = item["source"]
-        msk = item["mask"]
-        tgt = item["target"]
-
-        if max_windows_per_sample is not None and src.shape[0] > max_windows_per_sample:
-            idx = torch.randperm(src.shape[0])[:max_windows_per_sample]
-            src = src[idx]
-            msk = msk[idx]
-            tgt = tgt[idx]
-
-        sources.append(src)
-        masks.append(msk)
-        targets.append(tgt)
-
-    return {
-        "source": torch.cat(sources, dim=0),
-        "mask": torch.cat(masks, dim=0),
-        "target": torch.cat(targets, dim=0)
-    }
-
-
-def validate(model, loader, criterion, device, epoch, skeleton_config=None):
-    """Validate the model and compute MPJPE/MARE metrics."""
-    # Free up memory before validation (fragmentation cleanup)
-    torch.cuda.empty_cache()
-    
+def validate(model, loader, criterion, device, epoch):
+    """Validate MPJPE in Millimeters."""
     model.eval()
-
-    if skeleton_config is None:
-        skeleton_config = get_totalcapture_skeleton()
-
-    pbar = tqdm(total=len(loader), desc=f"Epoch {epoch} [VAL]")
-
-    mare_sum = 0.0
-    mare_count = 0
+    pbar = tqdm(loader, desc=f"Epoch {epoch} [VAL]")
+    
     mpjpe_sum = 0.0
-    mpjpe_count = 0
-
-    evaluator = MotionEvaluator(skeleton_config['parents'], skeleton_config['offsets'])
-
+    count = 0
+    
     with torch.no_grad():
-        for batch in loader:
-            # Use non_blocking=True
+        for batch in pbar:
             src = batch["source"].to(device, non_blocking=True)
-            mask = batch["mask"].to(device, non_blocking=True)
-            tgt = batch["target"].to(device, non_blocking=True)
-
-            # Passing key_padding_mask=None ensures full historical context
-            root_out, body_out = model(src, key_padding_mask=None)
-            pred_combined = torch.cat([root_out, body_out], dim=2)
-
-            if tgt.dim() == 3 and tgt.shape[-1] == 132:
-                tgt = tgt.view(tgt.shape[0], tgt.shape[1], 22, 6)
-
-            metrics_batch = evaluator.compute_metrics(pred_combined, tgt)
+            tgt_rot = batch["target"].to(device, non_blocking=True)
             
-            B = pred_combined.shape[0]
-            mpjpe_sum += metrics_batch["MPJPE"] * B
-            mare_sum += metrics_batch["MARE"] * B
-            mpjpe_count += B
+            # Forward (Output is Rotations)
+            preds_rot = model(src)
             
-            pbar.update(1)
+            # Convert both to positions for metric using Loss FK Helper
+            pred_pos = criterion._run_canonical_fk(preds_rot)
+            
+            gt_body_rot = tgt_rot[:, :, 2:, :] 
+            tgt_pos = criterion._run_canonical_fk(gt_body_rot)
+            
+            # Calculate MPJPE
+            diff = pred_pos - tgt_pos
+            dist = torch.norm(diff, dim=-1)
+            batch_mpjpe = dist.mean().item()
+            
+            B = src.shape[0]
+            mpjpe_sum += batch_mpjpe * B
+            count += B
+            
+    avg_mpjpe_m = mpjpe_sum / max(count, 1)
+    avg_mpjpe_mm = avg_mpjpe_m * 1000.0
+    
+    return avg_mpjpe_mm
 
-    pbar.close()
-
-    metrics = {
-        "MPJPE": mpjpe_sum / max(mpjpe_count, 1),
-        "MARE": mare_sum / max(mpjpe_count, 1)
+def collate_flatten(batch):
+    return {
+        "source": torch.cat([b["source"] for b in batch], dim=0),
+        "target": torch.cat([b["target"] for b in batch], dim=0)
     }
-    return metrics
-
 
 def main():
-    # 1. Setup
     set_random_seed(CONFIG["seed"])
     logger = setup_logging(CONFIG["log_dir"], log_file="train.log")
     device = CONFIG["device"]
-    logger.info(f"Starting experiment: {CONFIG['experiment_name']} on {device}")
-    logger.info(f"PyTorch version: {torch.__version__}")
     
-    if torch.cuda.is_available():
-        logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
-        logger.info(f"TF32 Enabled: {torch.backends.cuda.matmul.allow_tf32}")
-        logger.info(f"CUDNN Benchmark: {torch.backends.cudnn.benchmark}")
+    logger.info(f"🚀 Starting Deep Rotation Training (L={CONFIG['num_layers']}) on {device}")
     
-    # 2. Data
-    logger.info("Initializing Datasets...")
-    train_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], split="train", max_windows=CONFIG.get("max_windows_per_sample"))
-    val_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], split="val", max_windows=None)
+    # 1. Data
+    train_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], "train", CONFIG["max_windows_train"])
+    val_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], "val", None)
     
-    train_loader = DataLoader(
-        train_dataset, 
-        batch_size=CONFIG["batch_size"], 
-        shuffle=True, 
-        num_workers=CONFIG["num_workers"],
-        pin_memory=True,
-        drop_last=True,
-        persistent_workers=CONFIG["num_workers"] > 0,
-        prefetch_factor=2 if CONFIG["num_workers"] > 0 else None,
-        collate_fn=functools.partial(collate_flatten_windows, max_windows_per_sample=None)
-    )
-    val_loader = DataLoader(
-        val_dataset, 
-        batch_size=4, # Use 8 as requested by user - fits in memory while keeping full sequences
-        shuffle=False, 
-        num_workers=CONFIG["num_workers"],
-        pin_memory=True,
-        persistent_workers=CONFIG["num_workers"] > 0,
-        prefetch_factor=2 if CONFIG["num_workers"] > 0 else None,
-        collate_fn=functools.partial(collate_flatten_windows, max_windows_per_sample=None)
-    )
+    train_loader = DataLoader(train_dataset, batch_size=CONFIG["batch_size"], shuffle=True, 
+                              num_workers=CONFIG["num_workers"], pin_memory=True, collate_fn=collate_flatten, drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=CONFIG["batch_size"], shuffle=False, 
+                            num_workers=CONFIG["num_workers"], pin_memory=True, collate_fn=collate_flatten)
     
-    logger.info(f"Train batches: {len(train_loader)}, Val batches: {len(val_loader)}")
+    logger.info(f"Train Batches: {len(train_loader)} | Val Batches: {len(val_loader)}")
     
-    # 3. Model
+    # 2. Model
     model = MotionTransformer(
-        num_joints=CONFIG["num_joints"],
-        input_feats=CONFIG["input_feats"],
-        d_model=CONFIG["d_model"],
-        num_layers=CONFIG["num_layers"],
-        n_head=CONFIG["n_head"],
-        d_ff=CONFIG["d_ff"],
-        dropout=CONFIG["dropout"],
-        max_len=CONFIG["max_len"]
+        num_joints=CONFIG["num_joints_in"], 
+        input_feats=CONFIG["input_feats"], 
+        output_joints=CONFIG["num_joints_out"],
+        d_model=CONFIG["d_model"], 
+        num_layers=CONFIG["num_layers"], 
+        n_head=CONFIG["n_head"], 
+        d_ff=CONFIG["d_ff"], 
+        dropout=CONFIG["dropout"]
     ).to(device)
     
-    # Log original model size
-    # Log original model size
-    # CHANGE: Removed '.type' from device
-    # Log original model size
-    # FIX: Input size must be (Batch, Window, Joints * Channels) -> (32, 64, 486)
-    logger.info(f"Model Summary: \n{summary(model, input_size=(CONFIG['batch_size'], CONFIG['window_size'], CONFIG['num_joints'] * CONFIG['input_feats']), device=device)}")
-    # 4. Optimize Model (torch.compile) - DISABLED as per previous script
-    
-    # 5. Optimizer & Scheduler
+    try:
+        input_shape = (CONFIG['batch_size'], CONFIG['window_size'], CONFIG['num_joints_in'], CONFIG['input_feats'])
+        logger.info(f"Model Summary:\n{summary(model, input_size=input_shape, device=device)}")
+    except Exception as e:
+        logger.warning(f"Could not print summary: {e}")
+
+    # 3. Optimizer
     optimizer = optim.AdamW(
         model.parameters(), 
         lr=CONFIG["lr"], 
-        weight_decay=CONFIG["weight_decay"]
+        weight_decay=CONFIG["weight_decay"],
+        betas=(0.9, 0.999),
+        eps=1e-8
     )
     
-    # OneCycleLR
-    scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer,
-        max_lr=CONFIG["lr"],
-        steps_per_epoch=len(train_loader),
-        epochs=CONFIG["epochs"],
-        pct_start=CONFIG["warmup_pct"]
-    )
-    
-    # 6. Loss
-    skel_config = get_totalcapture_skeleton()
-    parents = torch.tensor(skel_config['parents'], dtype=torch.long)
-    offsets = skel_config['offsets'] # Already a tensor
-    
-    logger.info("Static Skeleton (TotalCapture) loaded successfully.")
-
-    # --- ADDED NEW LOSS PARAMETERS HERE ---
-    criterion = MotionCorrectionLoss(
-        parents=parents,
-        offsets=offsets,
-        lambda_root_vel=CONFIG["lambda_root_vel"],
-        lambda_root_rot=CONFIG["lambda_root_rot"],
-        lambda_pose_rot=CONFIG["lambda_pose_rot"],
-        lambda_pose_pos=CONFIG["lambda_pose_pos"],
-        lambda_smooth=CONFIG["lambda_smooth"],
-        lambda_accel=CONFIG["lambda_accel"],
-        # New Constraints
+    # 4. Loss
+    criterion = MotionLoss(
+        lambda_rot=CONFIG["lambda_rot"], 
+        lambda_pos=CONFIG["lambda_pos"],
+        lambda_vel=CONFIG["lambda_vel"], 
+        lambda_smooth=CONFIG["lambda_smooth"], 
+        lambda_contact=CONFIG["lambda_contact"],
         lambda_floor=CONFIG["lambda_floor"],
-        lambda_tilt=CONFIG["lambda_tilt"],
-        lambda_contact=CONFIG["lambda_contact"]
+        lambda_tilt=CONFIG["lambda_tilt"]
     ).to(device)
     
-    # 7. Mixed Precision
-    scaler = GradScaler('cuda', enabled=CONFIG["use_amp"] and device == "cuda")
+    scaler = GradScaler('cuda', enabled=CONFIG["use_amp"])
     
-    # 8. Resume
-    start_epoch = 0
-    if CONFIG["resume_checkpoint"] == "auto":
-        resume_path = auto_resume(CONFIG["save_dir"])
-        if resume_path:
-            start_epoch = load_checkpoint(resume_path, model, optimizer, scheduler)
-            logger.info(f"Resumed from epoch {start_epoch}")
-    elif CONFIG["resume_checkpoint"]:
-        start_epoch = load_checkpoint(
-            CONFIG["resume_checkpoint"], model, optimizer, scheduler
-        )
-        logger.info(f"Resumed from checkpoint: {CONFIG['resume_checkpoint']}")
-
-    # 9. Training Loop
+    # 5. Checkpoint & Resume Logic
     best_mpjpe = float("inf")
+    start_epoch = 1
     
-    for epoch in range(start_epoch + 1, CONFIG["epochs"] + 1):
+    checkpoint_load_path = os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth")
+    if not os.path.exists(checkpoint_load_path):
+        available_checkpoints = glob.glob(os.path.join(CONFIG["save_dir"], "checkpoint_epoch*.pth"))
+        if available_checkpoints:
+            available_checkpoints.sort(key=lambda f: int(re.findall(r'\d+', os.path.basename(f))[0]), reverse=True)
+            checkpoint_load_path = available_checkpoints[0]
+
+    if os.path.exists(checkpoint_load_path):
+        logger.info(f"🔄 Loading checkpoint from {checkpoint_load_path}")
+        try:
+            checkpoint = torch.load(checkpoint_load_path, map_location=device)
+            model.load_state_dict(checkpoint['model_state_dict'])
+            
+            if 'optimizer_state_dict' in checkpoint:
+                try:
+                    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                    logger.info("✅ Optimizer state loaded successfully")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not load optimizer state: {e}. Using fresh optimizer.")
+            
+            start_epoch = checkpoint.get('epoch', 0) + 1
+            best_mpjpe = checkpoint.get('best_mpjpe', float('inf'))
+            logger.info(f"🚀 Resuming from epoch {start_epoch} (Best MPJPE: {best_mpjpe:.2f})")
+        except Exception as e:
+            logger.error(f"❌ Error loading checkpoint: {e}. Starting from scratch.")
+            start_epoch = 1
+            best_mpjpe = float("inf")
+    else:
+        logger.info("🆕 No checkpoint found. Starting training from scratch.")
+
+    # 6. Scheduler (OneCycleLR with Resume Support)
+    # Total steps for the entire training run
+    total_steps = len(train_loader) * CONFIG["epochs"]
+    
+    # Calculate where we are if resuming (last completed step index)
+    # If starting fresh (epoch 1), last_epoch should be -1
+    last_step_index = (start_epoch - 1) * len(train_loader) - 1
+    
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=CONFIG["lr"] * 10, # Peak LR (usually 10x base)
+        total_steps=total_steps,
+        pct_start=CONFIG["warmup_pct"],
+        last_epoch=last_step_index # Resume logic
+    )
+    
+    # Attempt to load scheduler state if available (overrides calculation if valid)
+    if start_epoch > 1 and os.path.exists(checkpoint_load_path):
+        try:
+            checkpoint = torch.load(checkpoint_load_path, map_location=device)
+            if 'scheduler_state_dict' in checkpoint:
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+                logger.info("✅ Scheduler state loaded successfully")
+        except:
+            pass
+
+    # 7. Training Loop
+    latest_path = os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth")
+    
+    for epoch in range(start_epoch, CONFIG["epochs"] + 1):
         logger.info(f"--- Epoch {epoch}/{CONFIG['epochs']} ---")
         
         # Train
-        train_metrics = train_one_epoch(
-            model, train_loader, optimizer, scheduler, 
-            criterion, scaler, device, epoch, CONFIG
-        )
+        train_stats = train_one_epoch(model, train_loader, optimizer, scheduler, criterion, scaler, device, epoch)
         
-        # --- UPDATED LOGGING TO SHOW NEW METRICS ---
-        log_str = f"Loss: {train_metrics['loss']:.4f} | "
-        log_str += f"MPJPE: {train_metrics.get('l_mpjpe', 0):.3f} | "
-        log_str += f"Tilt: {train_metrics.get('l_tilt', 0):.3f} | "
-        log_str += f"Floor: {train_metrics.get('l_floor', 0):.3f} | "
-        log_str += f"Ct: {train_metrics.get('l_contact', 0):.4f}"
-        
-        logger.info(log_str)
-        logger.debug(f"Timing:\n{train_metrics['time_stats']}")
+        logger.info(f"[TRAIN] Loss: {train_stats['loss']:.5f} | Rot: {train_stats.get('l_rot', 0):.5f} | Pos: {train_stats.get('l_mpjpe', 0):.5f}")
         
         # Validate
-        val_skel_config = None
-        if parents is not None and offsets is not None:
-             val_skel_config = {
-                 'parents': parents,
-                 'offsets': offsets,
-                 'joint_names': get_totalcapture_skeleton()['joint_names']
-             }
-
-        val_metrics = validate(model, val_loader, criterion, device, epoch, skeleton_config=val_skel_config)
-        mpjpe = val_metrics["MPJPE"]
-        mare = val_metrics["MARE"]
+        val_mpjpe_mm = validate(model, val_loader, criterion, device, epoch)
+        logger.info(f"[VAL] MPJPE: {val_mpjpe_mm:.2f} mm")
         
-        logger.info(f"Val MPJPE: {mpjpe:.5f} mm | Val MARE: {mare:.5f}")
-        
-        # Save Checkpoint
-        is_best = mpjpe < best_mpjpe
-        if is_best:
-            best_mpjpe = mpjpe
-            logger.info(f"New best MPJPE: {best_mpjpe:.5f}")
+        # Save Best
+        if val_mpjpe_mm < best_mpjpe:
+            best_mpjpe = val_mpjpe_mm
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'best_mpjpe': best_mpjpe,
+            }, os.path.join(CONFIG["save_dir"], "best_model.pth"))
+            logger.info(f"⭐ New Best Model Saved! ({val_mpjpe_mm:.2f} mm)")
             
-        if epoch % 10 == 0 or is_best:
-            save_checkpoint(
-                CONFIG["save_dir"], 
-                epoch, 
-                model, 
-                optimizer, 
-                scheduler,
-                config=CONFIG,
-                metrics=val_metrics, 
-                is_best=is_best
-            )
+        # Save Regular Checkpoint & Latest
+        checkpoint_data = {
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optimizer.state_dict(),
+            'scheduler_state_dict': scheduler.state_dict(),
+            'best_mpjpe': best_mpjpe,
+        }
+        torch.save(checkpoint_data, latest_path)
+        
+        if epoch % 10 == 0:
+            torch.save(checkpoint_data, os.path.join(CONFIG["save_dir"], f"checkpoint_epoch{epoch}.pth"))
 
-        if epoch % 25 == 0:
-            save_checkpoint(
-                CONFIG["save_dir"],
-                epoch,
-                model,
-                optimizer,
-                scheduler,
-                config=CONFIG,
-                metrics=val_metrics,
-                is_best=False,
-                prefix="milestone"
-            )
-    
-    logger.info(f"Training complete! Best MPJPE: {best_mpjpe:.5f}")
-
+    logger.info(f"Training Complete. Best MPJPE: {best_mpjpe:.2f} mm")
 
 if __name__ == "__main__":
+    os.makedirs(CONFIG["save_dir"], exist_ok=True)
+    os.makedirs(CONFIG["log_dir"], exist_ok=True)
     main()
