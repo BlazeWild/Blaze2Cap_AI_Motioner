@@ -1,3 +1,5 @@
+# pose_processing.py
+
 import numpy as np
 
 # ==========================================
@@ -53,58 +55,38 @@ def add_virtual_joints(raw_data):
 
     return np.concatenate([raw_data, neck[:, np.newaxis], mid_hip[:, np.newaxis]], axis=1)
 
-def get_hip_transform_6d(pos_data):
+def get_alignment_6d(pos_data):
     """
-    Calculates Absolute Hip 6D (State) and Delta Hip 6D (Velocity).
-    Returns: 
-        abs_6d: (F, 6)
-        delta_6d: (F, 6)
+    Calculates the 6D Rotation Representation of the Hip Alignment.
+    Constructs a rotation matrix where X-axis aligns with the vector (L_HIP -> R_HIP).
+    Output: (F, 6)
     """
-    # 1. Calculate Absolute Orientation (Thumb Rule: Y-Axis Logic)
+    # 1. Construct X-axis (Right Vector) from Hips
     # Vector from Left Hip to Right Hip
-    r_vec = pos_data[:, I_R_HIP] - pos_data[:, I_L_HIP]
+    r_vec = pos_data[:, I_R_HIP] - pos_data[:, I_L_HIP] # (F, 3)
     
-    # X-Axis: Points Right
-    x_axis = r_vec / (np.linalg.norm(r_vec, axis=1, keepdims=True) + 1e-8)
+    # Normalize X
+    x_len = np.linalg.norm(r_vec, axis=1, keepdims=True) + 1e-8
+    x_axis = r_vec / x_len
     
-    # Y-Axis: Points Up (Global Y) - We assume gravity is consistent
-    y_global = np.zeros_like(x_axis); y_global[:, 1] = 1.0
+    # 2. Construct Y-axis (Up Vector) - Assumed Global Y (0,1,0)
+    # We use global Y to keep the alignment planar (trajectory-like)
+    y_global = np.zeros_like(x_axis)
+    y_global[:, 1] = 1.0
     
-    # Z-Axis: Points Forward (Cross Product)
+    # 3. Construct Z-axis (Forward) via Cross Product
     z_axis = np.cross(x_axis, y_global)
-    z_axis = z_axis / (np.linalg.norm(z_axis, axis=1, keepdims=True) + 1e-8)
+    z_len = np.linalg.norm(z_axis, axis=1, keepdims=True) + 1e-8
+    z_axis = z_axis / z_len
     
-    # Re-orthogonalize Y
+    # 4. Re-orthogonalize Y-axis (Y = Z cross X)
     y_axis = np.cross(z_axis, x_axis)
     
-    # Stack Rotation Matrix (F, 3, 3)
-    # [x, y, z] columns
-    rot_mats = np.stack([x_axis, y_axis, z_axis], axis=2)
+    # 5. Extract 6D Representation (First 2 columns: X and Y)
+    # Shape: (F, 6) -> [x_x, x_y, x_z, y_x, y_y, y_z]
+    feat_6d = np.concatenate([x_axis, y_axis], axis=1)
     
-    # 2. Extract Absolute 6D (First 2 columns)
-    abs_6d = np.concatenate([x_axis, y_axis], axis=1) # (F, 6)
-    
-    # 3. Calculate Delta 6D (Frame-to-Frame change)
-    # R_curr = R_prev @ R_delta  =>  R_delta = R_prev.T @ R_curr
-    
-    # Initialize Delta as Identity
-    rot_delta_mats = np.zeros_like(rot_mats)
-    rot_delta_mats[0] = np.eye(3)
-    
-    # Compute for t=1..N
-    # Transpose of Prev: (F-1, 3, 3) -> swap last two dims
-    prev_T = np.transpose(rot_mats[:-1], (0, 2, 1))
-    curr = rot_mats[1:]
-    
-    # Batch Matmul
-    rot_delta_mats[1:] = np.matmul(prev_T, curr)
-    
-    # Convert Delta Matrix to 6D
-    d_x = rot_delta_mats[:, :, 0]
-    d_y = rot_delta_mats[:, :, 1]
-    delta_6d = np.concatenate([d_x, d_y], axis=1) # (F, 6)
-    
-    return abs_6d, delta_6d
+    return feat_6d
 
 def align_to_canonical_frame(pos_data):
     """
@@ -129,10 +111,17 @@ def align_to_canonical_frame(pos_data):
     pos_aligned = np.einsum('bjk,bkp->bjp', pos_data, rot_mat)
     return pos_aligned
 
+
 def process_blazepose_frames(raw_data, window_size):
     """
-    Input: (F, 25, 7)
-    Output: (F, Window, 28, 14)
+    Extracts 20 Features (User Adjusted):
+    - 0-2: Canonical Pos (3)
+    - 3-5: Canonical Vel (3)
+    - 6-8: Parent Vec (3)
+    - 9-11: Child Vec (3)
+    - 12: Visibility (1)
+    - 13: Anchor (1)
+    - 14-19: Alignment 6D Rotation (6)
     """
     # 1. Add Virtual Joints -> (F, 27, 7)
     data_27 = add_virtual_joints(raw_data)
@@ -141,22 +130,18 @@ def process_blazepose_frames(raw_data, window_size):
     vis = data_27[:, :, 5:6]
     anchor = data_27[:, :, 6:7]
     
-    # Center Data
+    # Center World Data
     root_pos = pos_world[:, I_MIDHIP:I_MIDHIP+1, :]
     pos_centered = pos_world - root_pos
+    
+    # --- A. VIEW CONTEXT (Alignment 6D) ---
+    # Indices 14-19 (6 Dims)
+    # We calculate the hip alignment in 6D and broadcast it to all joints
+    align_6d = get_alignment_6d(pos_centered) # (F, 6)
+    align_feat = np.repeat(align_6d[:, np.newaxis, :], NUM_JOINTS, axis=1) # (F, 27, 6)
 
-    # --- A. PREPARE ROOT FEATURES (Index 0) ---
-    # Shape: (F, 14)
-    abs_6d, delta_6d = get_hip_transform_6d(pos_centered)
-    
-    root_feat = np.zeros((len(abs_6d), 14), dtype=np.float32)
-    root_feat[:, 0:6] = abs_6d
-    root_feat[:, 6:12] = delta_6d
-    # 12-13 are 0.0 padding
-    
-    # --- B. PREPARE BODY FEATURES (Indices 1-27) ---
-    # Shape: (F, 27, 14)
-    
+    # --- B. CANONICAL POSE ---
+    # Indices 0-11
     pos_canonical = align_to_canonical_frame(pos_centered)
     
     vel_canonical = np.zeros_like(pos_canonical)
@@ -166,30 +151,29 @@ def process_blazepose_frames(raw_data, window_size):
     parent_vecs = pos_canonical - pos_canonical[:, PARENTS]
     child_vecs = pos_canonical[:, CHILDREN] - pos_canonical
     
-    # Stack Body Features
-    # 0-2: Pos, 3-5: Vel, 6-8: Par, 9-11: Chi, 12: Vis, 13: Anc
-    body_feats = np.concatenate([
-        pos_canonical,  # 3
-        vel_canonical,  # 3
-        parent_vecs,    # 3
-        child_vecs,     # 3
-        vis,            # 1
-        anchor          # 1
-    ], axis=2) # Total 14
+    leaf_mask = (CHILDREN == np.arange(NUM_JOINTS))
+    child_vecs[:, leaf_mask, :] = parent_vecs[:, leaf_mask, :]
+
+    # --- C. STACK 20 FEATURES ---
+    features = np.concatenate([
+        pos_canonical,  # 3 (0-2)
+        vel_canonical,  # 3 (3-5)
+        parent_vecs,    # 3 (6-8)
+        child_vecs,     # 3 (9-11)
+        vis,            # 1 (12)
+        anchor,         # 1 (13)
+        align_feat,     # 6 (14-19) - The Hip Ori 6D
+    ], axis=2)
+    # Total: 3+3+3+3+1+1+6 = 20
     
-    # --- C. MERGE ROOT + BODY ---
-    # (F, 1, 14) + (F, 27, 14) -> (F, 28, 14)
-    final_feats = np.concatenate([root_feat[:, np.newaxis, :], body_feats], axis=1)
-    
-    # --- D. WINDOWING ---
-    F_len, J, C = final_feats.shape
-    padded = np.concatenate([np.repeat(final_feats[:1], window_size-1, axis=0), final_feats], axis=0)
-    
+    # Windowing
+    F, N = features.shape[0], window_size
+    padded = np.concatenate([np.repeat(features[:1], N-1, axis=0), features], axis=0)
     s0, s1, s2 = padded.strides
     X_windows = np.lib.stride_tricks.as_strided(
-        padded, shape=(F_len, window_size, J, C), strides=(s0, s0, s1, s2)
+        padded, shape=(F, N, 27, 20), strides=(s0, s0, s1, s2)
     )
     
-    M_masks = np.zeros((F_len, window_size), dtype=bool)
+    M_masks = np.zeros((F, N), dtype=bool)
     
     return X_windows.copy(), M_masks

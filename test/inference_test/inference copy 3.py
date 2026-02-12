@@ -20,23 +20,19 @@ from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
 
 # --- CONFIGURATION ---
 INPUT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazepose_final/S1/acting1/cam1/blazepose_S1_acting1_cam1_seg0_s1_o0.npy"
-CHECKPOINT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/best_model_hip_epoch26.pth"
+CHECKPOINT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/best_model.pth"
 
 WINDOW_SIZE = 64
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# --- FORWARD KINEMATICS ENGINE ---
+# --- TRAJECTORY RECONSTRUCTION ENGINE ---
 class TrajectoryFK(torch.nn.Module):
     """
-    Reconstructs 3D Pose from Model Predictions (21 Joints).
+    Reconstructs Global Motion from Model Predictions.
     
-    Model Output (21, 6):
-    - Index 0: Hip/Pelvis Rotation DELTA [6D]
-    - Index 1-20: Body Local Rotations [6D]
-    
-    Logic:
-    - Root (Joint 0) is FIXED at (0,0,0) Identity.
-    - Hip (Joint 1) Accumulates Deltas: H_t = H_{t-1} @ Delta_t
+    Model Output (22, 6):
+    - Index 0: Root Position Velocity (Local)
+    - Index 1: Root Rotation Velocity (Local)
+    - Index 2-21: Body Pose (Local Rotations)
     """
     def __init__(self):
         super().__init__()
@@ -54,52 +50,64 @@ class TrajectoryFK(torch.nn.Module):
 
     def forward(self, pred_series):
         """
-        pred_series: (SeqLen, 21, 6)
-        Returns: (SeqLen, 22, 3) - Global 3D Positions (Includes Fixed Root)
+        pred_series: (SeqLen, 22, 6) - Stream of predictions
+        Returns: (SeqLen, 22, 3) - Global 3D Positions
         """
         L = pred_series.shape[0]
         device = pred_series.device
         
         # 1. Convert all outputs to Matrices
-        rot_mats = self.cont6d_to_mat(pred_series) # (L, 21, 3, 3)
+        # Shape: (L, 22, 3, 3)
+        rot_mats = self.cont6d_to_mat(pred_series)
+        
+        # 2. Initialize Global State
+        # We start at (0,0,0) facing +Z (Identity)
+        current_root_pos = torch.zeros(3, device=device)
+        current_root_rot = torch.eye(3, device=device)
         
         all_global_pos = []
-        
-        # Initialize Hip Accumulator (Identity)
-        current_hip_rot = torch.eye(3, device=device)
 
-        # 2. Time Integration Loop
+        # 3. Time Integration Loop
         for t in range(L):
+            # --- A. UPDATE ROOT TRAJECTORY ---
+            
+            # 1. Get Deltas from Model
+            # Index 0: Linear Velocity [vx, vy, vz] (Local to current facing)
+            root_vel_local = pred_series[t, 0, :3] 
+            
+            # Index 1: Angular Velocity (Rotation Matrix)
+            root_rot_delta = rot_mats[t, 1] 
+            
+            # 2. Update Global Rotation
+            # New Rot = Old Rot @ Delta Rot
+            current_root_rot = torch.matmul(current_root_rot, root_rot_delta)
+            
+            # 3. Update Global Position
+            # New Pos = Old Pos + (Old Rot @ Local Vel)
+            # (Move forward in the direction we were facing *before* turning)
+            global_vel = torch.matmul(current_root_rot, root_vel_local)
+            current_root_pos = current_root_pos + global_vel
+            
+            # --- B. COMPUTE BODY POSE (FK) ---
+            
             frame_pos = [None] * 22
             frame_rots = [None] * 22
             
-            # --- JOINT 0: WORLD ROOT (FIXED ANCHOR) ---
-            # Forced to (0,0,0) Identity
-            frame_rots[0] = torch.eye(3, device=device)
-            frame_pos[0] = torch.zeros(3, device=device)
+            # Root (Index 0/1) is now set
+            frame_rots[0] = current_root_rot
+            frame_pos[0] = current_root_pos
             
-            # --- JOINT 1: HIPS (Accumulate Delta) ---
-            # Index 0 in prediction is the Hip Delta
-            delta_hip = rot_mats[t, 0] 
-            
-            # Update Accumulator: New = Old * Delta
-            current_hip_rot = torch.matmul(current_hip_rot, delta_hip)
-            
-            # Calculate Global Hip Transform
-            # Since Parent(1) is 0 (Identity), Global Hip Rot IS current_hip_rot
-            frame_rots[1] = current_hip_rot
-            
-            p1 = self.parents[1].item() # 0
+            # Index 1 (Hips) is usually same as 0 in TotalCapture or small offset
+            # We treat 1 as the start of the chain for simplicity here,
+            # using the updated root rotation.
+            frame_rots[1] = current_root_rot 
             off1 = self.offsets[1]
-            frame_pos[1] = frame_pos[p1] + torch.matmul(frame_rots[p1], off1)
+            frame_pos[1] = frame_pos[0] + torch.matmul(frame_rots[0], off1)
 
-            # --- JOINTS 2-21: BODY (Standard FK) ---
-            # Prediction Indices 1-20 map to Skeleton Indices 2-21
+            # Rest of Body (2-21)
             for i in range(2, 22):
-                pred_idx = i - 1 
-                
                 p = self.parents[i].item()
-                local_rot = rot_mats[t, pred_idx]
+                local_rot = rot_mats[t, i]
                 
                 # Global Rot = Parent Global * Local
                 frame_rots[i] = torch.matmul(frame_rots[p], local_rot)
@@ -119,26 +127,36 @@ class SkeletonVisualizer:
     def __init__(self, predictions):
         self.data = predictions # (Frames, 22, 3)
         self.num_frames = len(predictions)
+        # Use TotalCapture parents for plotting structure
         self.parents = get_totalcapture_skeleton()['parents']
         
         self.fig = plt.figure(figsize=(10, 8))
         self.ax = self.fig.add_subplot(111, projection='3d')
         plt.subplots_adjust(bottom=0.25)
         
+        # Plot Objects
         self.scats = self.ax.scatter([], [], [], c='r', s=20)
         self.lines = [self.ax.plot([], [], [], 'b-')[0] for _ in range(len(self.parents))]
         
-        # Fixed limits 
-        limit = 1.2
+        # --- FIXED SCALE & LIMITS (Do not update per frame) ---
+        # Setting a fixed 4x4 meter stage centered at origin
+        # Adjust these values if your character walks further than 2 meters
+        limit = 2.0 
         self.ax.set_xlim(-limit, limit)
         self.ax.set_ylim(-limit, limit)
         self.ax.set_zlim(-limit, limit)
         
-        self.ax.set_xlabel('X')
-        self.ax.set_ylabel('Z (Depth)')
-        self.ax.set_zlabel('Y (Height)')
-        self.ax.set_title("Reconstructed Motion (Accumulated Hip)")
+        # Draw a static "Floor" grid for reference
+        xx, zz = np.meshgrid(np.linspace(-limit, limit, 10), np.linspace(-limit, limit, 10))
+        yy = np.zeros_like(xx)
+        self.ax.plot_wireframe(xx, yy, zz, color='gray', alpha=0.2)
         
+        self.ax.set_xlabel('X (Meters)')
+        self.ax.set_ylabel('Y (Height)')
+        self.ax.set_zlabel('Z (Depth)')
+        self.ax.set_title("Global Trajectory (Fixed World Frame)")
+        
+        # Slider
         ax_slider = plt.axes([0.25, 0.1, 0.65, 0.03], facecolor='lightgoldenrodyellow')
         self.slider = Slider(ax_slider, 'Frame', 0, self.num_frames - 1, valinit=0, valfmt='%0.0f')
         self.slider.on_changed(self.update)
@@ -146,20 +164,31 @@ class SkeletonVisualizer:
 
     def update(self, val):
         frame_idx = int(self.slider.val)
-        p = self.data[frame_idx]
+        current_pose = self.data[frame_idx]
         
-        # Mapping: TotalCapture Y=Up -> Matplotlib Z=Up
-        # No Flipping, just standard mapping
-        xs = p[:, 0]
-        ys = p[:, 1] # Depth -> Y axis on plot
-        zs = p[:, 2] # Height -> Z axis on plot
+        # Extract coordinates
+        xs = current_pose[:, 0]
+        ys = current_pose[:, 1]
+        zs = current_pose[:, 2]
         
+        # Update Scatter (Joints)
         self.scats._offsets3d = (xs, ys, zs)
         
+        # Update Lines (Bones)
         for i, p_idx in enumerate(self.parents):
-            if i == 0: continue 
-            self.lines[i].set_data([xs[p_idx], xs[i]], [ys[p_idx], ys[i]])
-            self.lines[i].set_3d_properties([zs[p_idx], zs[i]])
+            if i == 0: continue # Root has no parent line
+            
+            # Draw line from Parent -> Child
+            self.lines[i].set_data(
+                [xs[p_idx], xs[i]], 
+                [ys[p_idx], ys[i]]
+            )
+            self.lines[i].set_3d_properties(
+                [zs[p_idx], zs[i]]
+            )
+            
+        # CRITICAL: We do NOT reset set_xlim/ylim/zlim here.
+        # This keeps the "camera" static so you see the character walk away.
             
         self.fig.canvas.draw_idle()
 
@@ -168,14 +197,14 @@ class SkeletonVisualizer:
 
 # --- MAIN ---
 def main():
-    print(f"--- Inference (21-Joint Output) on {DEVICE} ---")
+    print(f"--- Inference (Root Motion + Pose) on {DEVICE} ---")
     
-    # 1. Init Model (Updated Config)
+    # 1. Load Model (19 Feats, 22 Output Joints)
     print("1. Init Model...")
     model = MotionTransformer(
-        num_joints=27,      
-        input_feats=20,     # 20 Features
-        num_joints_out=21,  # 21 Output Joints
+        num_joints=27,      # 27 Input
+        input_feats=19,     # 19 Features
+        num_joints_out=22,  # 22 Output (Root + Body)
         d_model=512,
         num_layers=6,
         n_head=8,
@@ -196,7 +225,7 @@ def main():
     print(f"3. Processing: {os.path.basename(INPUT_FILE)}")
     raw_data = np.nan_to_num(np.load(INPUT_FILE).astype(np.float32))
     
-    # Process using Updated 20-Feature Processor
+    # Process using 19-Feature Processor
     features, _ = process_blazepose_frames(raw_data, WINDOW_SIZE)
     input_tensor = torch.from_numpy(features).to(DEVICE)
     
@@ -206,23 +235,25 @@ def main():
     
     with torch.no_grad():
         # Sliding window inference
-        for i in range(0, len(input_tensor), 1): 
-            batch = input_tensor[i : i+1] # (1, 64, 27, 20)
-            pred = model(batch) # (1, 64, 21, 6)
+        for i in range(0, len(input_tensor), 1): # Stride 1 for smoothness
+            batch = input_tensor[i : i+1] # (1, 64, 27, 19)
+            pred = model(batch) # (1, 64, 22, 6)
             
-            # Take the last frame prediction
-            pred_last = pred[0, -1, :, :] # (21, 6)
+            # Take the *middle* frame or *last* frame prediction?
+            # For trajectory, sequential is best. We take the last frame.
+            pred_last = pred[0, -1, :, :] # (22, 6)
             predictions_raw.append(pred_last)
             
-    full_pred_tensor = torch.stack(predictions_raw) # (L, 21, 6)
+    # Stack: (L, 22, 6)
+    full_pred_tensor = torch.stack(predictions_raw)
     
-    # 5. Reconstruct Skeleton (FK with Hip Accumulation)
-    print("5. Reconstructing Skeleton (FK)...")
+    # 5. Reconstruct Global Trajectory
+    print("5. Reconstructing Trajectory (FK)...")
     reconstructor = TrajectoryFK().to(DEVICE)
     global_positions = reconstructor(full_pred_tensor) # (L, 22, 3)
     
     global_np = global_positions.cpu().numpy()
-    print(f"   Motion generated: {global_np.shape} frames")
+    print(f"   Trajectory generated: {global_np.shape} frames")
     
     # 6. Visualize
     viz = SkeletonVisualizer(global_np)

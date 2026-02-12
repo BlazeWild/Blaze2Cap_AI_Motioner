@@ -85,8 +85,8 @@ class MotionTransformer(nn.Module):
         * Index 1-20: Body Joint Rotations
     """
     def __init__(self, 
-                 num_joints=27, 
-                 input_feats=20, # UPDATED: 20 features
+                 num_joints=28, 
+                 input_feats=14, # UPDATED: 20 features
                  num_joints_out=21, # UPDATED: 21 output joints (Index 0=Hip, 1-20=Body)
                  d_model=512, 
                  num_layers=6, 

@@ -40,14 +40,14 @@ torch.backends.cudnn.benchmark = True
 
 # --- CONFIGURATION ---
 CONFIG = {
-    "experiment_name": "canonical_rotation_27joints_deep",
+    "experiment_name": "canonical_rotation_28joints_deep",
     "data_root": os.path.join(PROJECT_ROOT, "blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset"),
     "save_dir": os.path.join(PROJECT_ROOT, "checkpoints"),
     "log_dir": os.path.join(PROJECT_ROOT, "logs"),
     
     # Model Hyperparameters
-    "num_joints_in": 27,    # 27 Input Joints
-    "input_feats": 20,      # 19 Features (Pos, Vel, Par, Chi, Vis, Anc, Align, SVel, Scale)
+    "num_joints_in": 28,    # 27 Input Joints
+    "input_feats": 14,      # 19 Features (Pos, Vel, Par, Chi, Vis, Anc, Align, SVel, Scale)
     "num_joints_out": 21,   # 21 Output Joints (Root + Body)
     
     "d_model": 512,

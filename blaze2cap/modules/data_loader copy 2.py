@@ -1,3 +1,4 @@
+# data_loader.py
 import os
 import json
 import numpy as np
@@ -5,9 +6,8 @@ import torch
 from torch.utils import data
 
 # --- STANDARD IMPORT ---
-# This matches the new 'pose_processing.py' (28 joints, 14 feats)
+# This matches the final 'pose_processing.py' we just created.
 from blaze2cap.modules.pose_processing import process_blazepose_frames
-
 class PoseSequenceDataset(data.Dataset):
     def __init__(self, dataset_root, window_size, split="train", max_windows=None):
         self.dataset_root = dataset_root
@@ -40,18 +40,15 @@ class PoseSequenceDataset(data.Dataset):
         # Ensure lengths match exactly
         min_len = min(len(input_data), len(gt_data))
         
-        # 1. PROCESS INPUT -> (F, N, 28, 14)
-        # Calls the new logic: 
-        # - Index 0: Root Token (Abs + Delta Hip 6D)
-        # - Index 1-27: Body Tokens (Canonical Pos/Vel/Bones)
+        # 1. PROCESS INPUT -> (F, N, 27, 20)
+        # Uses new logic (20 features including 6D alignment)
         X_windows, M_masks = process_blazepose_frames(input_data[:min_len], self.window_size)
         
         # 2. PROCESS TARGET -> (F, N, 21, 6)
-        # Original GT (22, 6): Index 0=PosDelta, 1=RotDelta, 2-21=Body
-        # We want: Index 0=RotDelta (Hip), 1-20=Body. Total 21.
+        # Original GT (22, 6): Index 0=Pos, 1=Rot, 2-21=Body
+        # New Request: Index 0=HipOri(Rot), 1-20=Body. Total 21.
         
-        # A. Slice GT to remove Position Channel (Index 0)
-        # We take Index 1 (Rot) and Indices 2-21 (Body)
+        # A. Slice GT to remove Position (Index 0)
         # Shape becomes (min_len, 21, 6)
         Y_sliced = gt_data[:min_len, 1:, :] 
         
@@ -61,7 +58,7 @@ class PoseSequenceDataset(data.Dataset):
         
         N = self.window_size
         
-        # C. Padding (Replicate first frame N-1 times to match input padding)
+        # C. Padding
         pad_gt = np.repeat(Y_flat[0:1], N-1, axis=0)
         full_gt = np.concatenate([pad_gt, Y_flat], axis=0)
         
@@ -74,7 +71,7 @@ class PoseSequenceDataset(data.Dataset):
         # E. Reshape -> (F, N, 21, 6)
         Y_windows = Y_windows_flat.reshape(min_len, N, 21, 6)
         
-        # 3. SUBSAMPLING (Optional)
+        # 3. SUBSAMPLING
         if self.max_windows is not None and len(X_windows) > self.max_windows:
             indices = np.linspace(0, len(X_windows)-1, self.max_windows, dtype=int)
             X_windows = X_windows[indices]
