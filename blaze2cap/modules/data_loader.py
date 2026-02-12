@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.utils import data
 
-# IMPORT FROM POSE PROCESSING
+# --- STANDARD IMPORT ---
 from blaze2cap.modules.pose_processing import process_blazepose_frames
 
 class PoseSequenceDataset(data.Dataset):
@@ -17,20 +17,8 @@ class PoseSequenceDataset(data.Dataset):
         with open(json_path, 'r') as f:
             full_data = json.load(f)
             
-        self.samples = []
-        candidates = [item for item in full_data if item.get(f"split_{split}", False)]
-        
-        # Simple existence check
-        for item in candidates:
-             if self._is_valid(item):
-                 self.samples.append(item)
-        
+        self.samples = [item for item in full_data if item.get(f"split_{split}", False)]
         print(f"[{split.upper()}] Loaded {len(self.samples)} valid samples.")
-
-    def _is_valid(self, item):
-        src = os.path.join(self.dataset_root, item["source"])
-        tgt = os.path.join(self.dataset_root, item["target"])
-        return os.path.exists(src) and os.path.exists(tgt)
 
     def __len__(self):
         return len(self.samples)
@@ -46,34 +34,39 @@ class PoseSequenceDataset(data.Dataset):
         gt_data = np.nan_to_num(np.load(target_path).astype(np.float32))
         
         min_len = min(len(input_data), len(gt_data))
-        input_data = input_data[:min_len]
-        gt_data = gt_data[:min_len]
         
-        # 1. Process Input -> (F, 64, 27, 19)
-        # Using the new logic with 19 features
-        X, M = process_blazepose_frames(input_data, self.window_size)
+        # 1. Process Input -> Returns (F, N, 27, 19)
+        # Uses the code from pose_processing.py above
+        X_windows, M_masks = process_blazepose_frames(input_data[:min_len], self.window_size)
         
-        # 2. Process Target -> (F, 64, 22, 6)
+        # 2. Process Target -> Returns (F, N, 22, 6)
         N = self.window_size
-        Y_flat = gt_data.reshape(min_len, -1)
         
+        # FIX: Flatten to 2D for stride tricks
+        Y_flat = gt_data[:min_len].reshape(min_len, -1) # (F, 132)
+        
+        # Pad
         pad_gt = np.repeat(Y_flat[0:1], N-1, axis=0)
         full_gt = np.concatenate([pad_gt, Y_flat], axis=0)
         
-        s0, s1, s2 = full_gt.strides
-        Y = np.lib.stride_tricks.as_strided(
-            full_gt, shape=(min_len, N, 22, 6), strides=(s0, s0, s1, s2)
+        # Stride on 2D
+        s0, s1 = full_gt.strides
+        Y_windows_flat = np.lib.stride_tricks.as_strided(
+            full_gt, shape=(min_len, N, 132), strides=(s0, s0, s1)
         )
         
-        # Subsample
-        if self.max_windows is not None and len(X) > self.max_windows:
-            indices = np.linspace(0, len(X)-1, self.max_windows, dtype=int)
-            X = X[indices]
-            M = M[indices]
-            Y = Y[indices]
+        # Reshape back to (F, N, 22, 6)
+        Y_windows = Y_windows_flat.reshape(min_len, N, 22, 6)
+        
+        # 3. Subsample
+        if self.max_windows is not None and len(X_windows) > self.max_windows:
+            indices = np.linspace(0, len(X_windows)-1, self.max_windows, dtype=int)
+            X_windows = X_windows[indices]
+            M_masks = M_masks[indices]
+            Y_windows = Y_windows[indices]
 
         return {
-            "source": torch.from_numpy(X.copy()), 
-            "mask": torch.from_numpy(M.copy()), 
-            "target": torch.from_numpy(Y.copy())
+            "source": torch.from_numpy(X_windows.copy()), 
+            "mask": torch.from_numpy(M_masks.copy()), 
+            "target": torch.from_numpy(Y_windows.copy())
         }

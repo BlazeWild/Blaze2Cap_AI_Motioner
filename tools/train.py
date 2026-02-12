@@ -25,7 +25,6 @@ from torchinfo import summary
 from tqdm import tqdm
 
 # --- Blaze2Cap Modules ---
-# CRITICAL: Using the correct 27-joint/Rotation modules
 from blaze2cap.modules.models import MotionTransformer
 from blaze2cap.modules.data_loader import PoseSequenceDataset
 from blaze2cap.modeling.loss import MotionLoss
@@ -46,19 +45,19 @@ CONFIG = {
     "log_dir": os.path.join(PROJECT_ROOT, "logs"),
     
     # Model Hyperparameters
-    "num_joints_in": 27,    # <--- CHANGED: Using full BlazePose (27 joints)
-    "input_feats": 19,      # <--- CHANGED: 19 Features [Pos(3), Vel(3), Par(3), Chi(3), Vis(1), Anc(1), Align(2), SVel(2), Scale(1)]
-    "num_joints_out": 22,   # 22 Output Body Joints (Rotations)
+    "num_joints_in": 27,    # 27 Input Joints
+    "input_feats": 19,      # 19 Features (Pos, Vel, Par, Chi, Vis, Anc, Align, SVel, Scale)
+    "num_joints_out": 22,   # 22 Output Joints (Root + Body)
     
     "d_model": 512,
-    "num_layers": 6,        # <--- DEEPER MODEL (Better for Rotation)
+    "num_layers": 6,        # Deep Model
     "n_head": 8,
     "d_ff": 1024,
     "dropout": 0.1,
     "max_len": 512,
     
     # Training
-    "batch_size": 32,       # Keep 32 for stability
+    "batch_size": 32,       
     "num_workers": 6,
     "max_windows_train": 64, 
     "lr": 1e-4,             
@@ -67,14 +66,15 @@ CONFIG = {
     "window_size": 64,
     "warmup_pct": 0.1,
     
-    # Loss Weights (Advanced Physics Constraints)
-    "lambda_rot": 3.0,        # <--- INCREASED: Prioritize Structure
-    "lambda_pos": 2.0,        # <--- BALANCED: Ensure FK validity
+    # Loss Weights
+    "lambda_root": 5.0,       # High priority on Trajectory
+    "lambda_rot": 1.0,        # Pose Structure
+    "lambda_pos": 2.0,        # FK Validity
     "lambda_vel": 1.0,        # Dynamics
-    "lambda_smooth": 0.5,     # Anti-Jitter (Increased from 0.1)
-    "lambda_contact": 2.0,    # Anti-Slide (Increased from 0.5)
-    "lambda_floor": 2.0,      # Anti-Clipping (NEW)
-    "lambda_tilt": 1.0,       # Spine Stability (NEW)
+    "lambda_smooth": 0.5,     # Anti-Jitter
+    "lambda_contact": 2.0,    # Anti-Slide
+    "lambda_floor": 2.0,      # Anti-Clipping
+    "lambda_tilt": 1.0,       # Spine Stability
     
     # System
     "seed": 42,
@@ -83,7 +83,6 @@ CONFIG = {
     "gradient_clip": 1.0,
 }
 
-# Fix fragmentation issues
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, device, epoch):
@@ -91,13 +90,12 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
     model.train()
     stats = defaultdict(float)
     
-    # Progress Bar with LR Logging
     pbar = tqdm(loader, desc=f"Epoch {epoch} [TRAIN]")
     
     for batch_idx, batch in enumerate(pbar):
         # 1. Inputs
         src = batch["source"].to(device, non_blocking=True) # (B, 64, 27, 19)
-        tgt_rot = batch["target"].to(device, non_blocking=True)
+        tgt_rot = batch["target"].to(device, non_blocking=True) # (B, 64, 22, 6)
         
         optimizer.zero_grad(set_to_none=True)
         
@@ -115,65 +113,98 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
         torch.nn.utils.clip_grad_norm_(model.parameters(), CONFIG["gradient_clip"])
         scaler.step(optimizer)
         scaler.update()
-        scheduler.step() # Step every batch for OneCycleLR
+        scheduler.step()
         
         # 4. Logging
         stats["loss"] += loss.item()
         for k, v in loss_logs.items():
             stats[k] += v
             
-        # Get Current LR
         current_lr = scheduler.get_last_lr()[0]
-            
-        # Updated Postfix to show key metrics and LR
+        
         pbar.set_postfix({
             "Loss": f"{loss.item():.4f}", 
-            "Rot": f"{loss_logs.get('l_rot', 0):.4f}",
+            "Root": f"{loss_logs.get('l_root', 0):.4f}",
             "Pos": f"{loss_logs.get('l_mpjpe', 0):.4f}",
             "Slide": f"{loss_logs.get('l_contact', 0):.4f}",
             "LR": f"{current_lr:.2e}" 
         })
 
-    # Averages
     N = len(loader)
     avg_stats = {k: v / N for k, v in stats.items()}
     return avg_stats
 
 def validate(model, loader, criterion, device, epoch):
-    """Validate MPJPE in Millimeters."""
+    """
+    Detailed Validation of Motion Quality.
+    Calculates MPJPE, Root Accuracy, and Foot Sliding.
+    """
     model.eval()
     pbar = tqdm(loader, desc=f"Epoch {epoch} [VAL]")
     
-    mpjpe_sum = 0.0
+    metrics_sum = defaultdict(float)
     count = 0
+    
+    # Feet indices for sliding metric (Right=18, Left=21 in 22-joint set)
+    feet_indices = [18, 21] 
     
     with torch.no_grad():
         for batch in pbar:
             src = batch["source"].to(device, non_blocking=True)
-            tgt_rot = batch["target"].to(device, non_blocking=True)
+            tgt_full = batch["target"].to(device, non_blocking=True)
             
-            # Forward (Output is Rotations)
-            preds_rot = model(src)
+            # Forward
+            preds_full = model(src) # (B, S, 22, 6)
             
-            # Convert both to positions for metric using Loss FK Helper
-            pred_pos = criterion._run_canonical_fk(preds_rot)
+            # --- 1. MPJPE (Body Pose Error) ---
+            # Use Criterion's FK helper to get 3D positions in Canonical Frame
+            # This handles the complex 6D->Mat->FK transform
+            pred_pos = criterion._run_canonical_fk(preds_full) # (B, S, 22, 3)
+            gt_pos = criterion._run_canonical_fk(tgt_full)
             
-            gt_body_rot = tgt_rot[:, :, 2:, :] 
-            tgt_pos = criterion._run_canonical_fk(gt_body_rot)
+            # Calculate Distance for Body Indices (2-21)
+            # We skip Root (0) and RootRot (1) for Body MPJPE
+            diff = pred_pos[:, :, 2:] - gt_pos[:, :, 2:]
+            dist = torch.norm(diff, dim=-1) # (B, S, 20)
+            mpjpe = dist.mean().item() * 1000.0 # Convert to mm
             
-            # Calculate MPJPE
-            diff = pred_pos - tgt_pos
-            dist = torch.norm(diff, dim=-1)
-            batch_mpjpe = dist.mean().item()
+            # --- 2. Root Accuracy (Trajectory) ---
+            # Index 0 is Root Linear Velocity Delta
+            pred_root_lin = preds_full[:, :, 0, :3]
+            gt_root_lin   = tgt_full[:, :, 0, :3]
+            root_pos_err = torch.norm(pred_root_lin - gt_root_lin, dim=-1).mean().item() * 1000.0
             
+            # --- 3. Foot Sliding (Physics) ---
+            pred_vel = pred_pos[:, 1:] - pred_pos[:, :-1]
+            gt_vel = gt_pos[:, 1:] - gt_pos[:, :-1]
+            
+            gt_feet_vel = gt_vel[:, :, feet_indices, :]
+            pred_feet_vel = pred_vel[:, :, feet_indices, :]
+            
+            # If GT foot is planted (<5mm/frame), Pred should be too
+            is_planted = (torch.norm(gt_feet_vel, dim=-1) < 0.005)
+            
+            if is_planted.sum() > 0:
+                # Magnitude of sliding during planted frames
+                slide = torch.norm(pred_feet_vel, dim=-1)[is_planted].mean().item() * 1000.0
+            else:
+                slide = 0.0
+            
+            # Accumulate
             B = src.shape[0]
-            mpjpe_sum += batch_mpjpe * B
+            metrics_sum["MPJPE"] += mpjpe * B
+            metrics_sum["RootPos"] += root_pos_err * B
+            metrics_sum["Slide"] += slide * B
             count += B
             
-    avg_mpjpe_m = mpjpe_sum / max(count, 1)
-    avg_mpjpe_mm = avg_mpjpe_m * 1000.0
-    
-    return avg_mpjpe_mm
+            pbar.set_postfix({
+                "MPJPE": f"{mpjpe:.1f}",
+                "Root": f"{root_pos_err:.1f}",
+                "Slide": f"{slide:.1f}"
+            })
+            
+    avg_metrics = {k: v / max(count, 1) for k, v in metrics_sum.items()}
+    return avg_metrics
 
 def collate_flatten(batch):
     return {
@@ -203,7 +234,7 @@ def main():
     model = MotionTransformer(
         num_joints=CONFIG["num_joints_in"], 
         input_feats=CONFIG["input_feats"], 
-        output_joints=CONFIG["num_joints_out"],
+        num_joints_out=CONFIG["num_joints_out"],
         d_model=CONFIG["d_model"], 
         num_layers=CONFIG["num_layers"], 
         n_head=CONFIG["n_head"], 
@@ -228,6 +259,7 @@ def main():
     
     # 4. Loss
     criterion = MotionLoss(
+        lambda_root=CONFIG["lambda_root"],
         lambda_rot=CONFIG["lambda_rot"], 
         lambda_pos=CONFIG["lambda_pos"],
         lambda_vel=CONFIG["lambda_vel"], 
@@ -239,7 +271,7 @@ def main():
     
     scaler = GradScaler('cuda', enabled=CONFIG["use_amp"])
     
-    # 5. Checkpoint & Resume Logic
+    # 5. Checkpoint & Resume
     best_mpjpe = float("inf")
     start_epoch = 1
     
@@ -260,8 +292,8 @@ def main():
                 try:
                     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
                     logger.info("✅ Optimizer state loaded successfully")
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not load optimizer state: {e}. Using fresh optimizer.")
+                except:
+                    logger.warning(f"⚠️ Could not load optimizer state. Using fresh optimizer.")
             
             start_epoch = checkpoint.get('epoch', 0) + 1
             best_mpjpe = checkpoint.get('best_mpjpe', float('inf'))
@@ -273,29 +305,23 @@ def main():
     else:
         logger.info("🆕 No checkpoint found. Starting training from scratch.")
 
-    # 6. Scheduler (OneCycleLR with Resume Support)
-    # Total steps for the entire training run
+    # 6. Scheduler
     total_steps = len(train_loader) * CONFIG["epochs"]
-    
-    # Calculate where we are if resuming (last completed step index)
-    # If starting fresh (epoch 1), last_epoch should be -1
     last_step_index = (start_epoch - 1) * len(train_loader) - 1
     
     scheduler = optim.lr_scheduler.OneCycleLR(
         optimizer,
-        max_lr=CONFIG["lr"] * 10, # Peak LR (usually 10x base)
+        max_lr=CONFIG["lr"] * 10, 
         total_steps=total_steps,
         pct_start=CONFIG["warmup_pct"],
-        last_epoch=last_step_index # Resume logic
+        last_epoch=last_step_index
     )
     
-    # Attempt to load scheduler state if available (overrides calculation if valid)
     if start_epoch > 1 and os.path.exists(checkpoint_load_path):
         try:
             checkpoint = torch.load(checkpoint_load_path, map_location=device)
             if 'scheduler_state_dict' in checkpoint:
                 scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-                logger.info("✅ Scheduler state loaded successfully")
         except:
             pass
 
@@ -307,12 +333,14 @@ def main():
         
         # Train
         train_stats = train_one_epoch(model, train_loader, optimizer, scheduler, criterion, scaler, device, epoch)
-        
-        logger.info(f"[TRAIN] Loss: {train_stats['loss']:.5f} | Rot: {train_stats.get('l_rot', 0):.5f} | Pos: {train_stats.get('l_mpjpe', 0):.5f}")
+        logger.info(f"[TRAIN] Loss: {train_stats['loss']:.5f} | Root: {train_stats.get('l_root',0):.4f} | Pos: {train_stats.get('l_mpjpe', 0):.4f}")
         
         # Validate
-        val_mpjpe_mm = validate(model, val_loader, criterion, device, epoch)
-        logger.info(f"[VAL] MPJPE: {val_mpjpe_mm:.2f} mm")
+        metrics = validate(model, val_loader, criterion, device, epoch)
+        
+        # Log Detailed Metrics
+        val_mpjpe_mm = metrics['MPJPE']
+        logger.info(f"[VAL] MPJPE: {val_mpjpe_mm:.2f}mm | RootPos: {metrics['RootPos']:.2f}mm | Slide: {metrics['Slide']:.2f}mm")
         
         # Save Best
         if val_mpjpe_mm < best_mpjpe:
@@ -326,7 +354,7 @@ def main():
             }, os.path.join(CONFIG["save_dir"], "best_model.pth"))
             logger.info(f"⭐ New Best Model Saved! ({val_mpjpe_mm:.2f} mm)")
             
-        # Save Regular Checkpoint & Latest
+        # Save Regular Checkpoint
         checkpoint_data = {
             'epoch': epoch,
             'model_state_dict': model.state_dict(),
