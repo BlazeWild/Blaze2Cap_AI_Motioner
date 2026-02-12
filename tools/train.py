@@ -57,7 +57,7 @@ CONFIG = {
     "max_len": 512,
     
     # Training
-    "batch_size": 32,       
+    "batch_size": 8,       
     "num_workers": 6,
     "max_windows_train": 64, 
     "lr": 1e-4,             
