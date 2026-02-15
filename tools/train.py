@@ -145,6 +145,7 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
         pbar.set_postfix({
             "Loss": f"{current_loss:.4f}", 
             "Root": f"{loss_logs.get('l_root', 0):.4f}",
+            "RAcc": f"{loss_logs.get('l_root_acc', 0):.4f}", 
             "Pos": f"{loss_logs.get('l_mpjpe', 0):.4f}",
             "Slide": f"{loss_logs.get('l_contact', 0):.4f}",
             "LR": f"{current_lr:.2e}" 
@@ -273,7 +274,7 @@ def main():
         
         # Train
         train_stats = train_one_epoch(model, train_loader, optimizer, scheduler, criterion, scaler, device, epoch)
-        logger.info(f"[TRAIN] Loss: {train_stats['loss']:.5f} | Root: {train_stats.get('l_root',0):.4f} | Pos: {train_stats.get('l_mpjpe', 0):.4f}")
+        logger.info(f"[TRAIN] Loss: {train_stats['loss']:.5f} | Root: {train_stats.get('l_root',0):.4f} | RAcc: {train_stats.get('l_root_acc', 0):.4f} | Pos: {train_stats.get('l_mpjpe', 0):.4f}")
         
         # Validate
         metrics = validate(model, val_loader, device, epoch)

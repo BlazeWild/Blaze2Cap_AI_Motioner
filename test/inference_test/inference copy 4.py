@@ -20,7 +20,7 @@ from blaze2cap.utils.skeleton_config import get_totalcapture_skeleton
 
 # --- CONFIGURATION ---
 INPUT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/blaze2cap/dataset/Totalcapture_blazepose_preprocessed/Dataset/blazepose_final/S1/acting1/cam1/blazepose_S1_acting1_cam1_seg0_s1_o0.npy"
-CHECKPOINT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/khjhgjhgjhg.pth"
+CHECKPOINT_FILE = "/home/blaze/Documents/Windows_Backup/Ashok/_AI/_COMPUTER_VISION/____RESEARCH/___MOTION_T_LIGHTNING/Blaze2Cap/checkpoints/best_model_hip_epoch26.pth"
 
 WINDOW_SIZE = 64
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -33,6 +33,10 @@ class TrajectoryFK(torch.nn.Module):
     Model Output (21, 6):
     - Index 0: Hip/Pelvis Rotation DELTA [6D]
     - Index 1-20: Body Local Rotations [6D]
+    
+    Logic:
+    - Root (Joint 0) is FIXED at (0,0,0) Identity.
+    - Hip (Joint 1) Accumulates Deltas: H_t = H_{t-1} @ Delta_t
     """
     def __init__(self):
         super().__init__()
@@ -51,7 +55,7 @@ class TrajectoryFK(torch.nn.Module):
     def forward(self, pred_series):
         """
         pred_series: (SeqLen, 21, 6)
-        Returns: (SeqLen, 22, 3) - Global 3D Positions
+        Returns: (SeqLen, 22, 3) - Global 3D Positions (Includes Fixed Root)
         """
         L = pred_series.shape[0]
         device = pred_series.device
@@ -78,10 +82,11 @@ class TrajectoryFK(torch.nn.Module):
             # Index 0 in prediction is the Hip Delta
             delta_hip = rot_mats[t, 0] 
             
-            # Update Accumulator: H_new = H_old @ Delta
+            # Update Accumulator: New = Old * Delta
             current_hip_rot = torch.matmul(current_hip_rot, delta_hip)
             
-            # Set Global Hip Rotation
+            # Calculate Global Hip Transform
+            # Since Parent(1) is 0 (Identity), Global Hip Rot IS current_hip_rot
             frame_rots[1] = current_hip_rot
             
             p1 = self.parents[1].item() # 0
@@ -89,6 +94,7 @@ class TrajectoryFK(torch.nn.Module):
             frame_pos[1] = frame_pos[p1] + torch.matmul(frame_rots[p1], off1)
 
             # --- JOINTS 2-21: BODY (Standard FK) ---
+            # Prediction Indices 1-20 map to Skeleton Indices 2-21
             for i in range(2, 22):
                 pred_idx = i - 1 
                 
@@ -122,16 +128,16 @@ class SkeletonVisualizer:
         self.scats = self.ax.scatter([], [], [], c='r', s=20)
         self.lines = [self.ax.plot([], [], [], 'b-')[0] for _ in range(len(self.parents))]
         
-        # Fixed limits
+        # Fixed limits 
         limit = 1.2
         self.ax.set_xlim(-limit, limit)
         self.ax.set_ylim(-limit, limit)
         self.ax.set_zlim(-limit, limit)
         
         self.ax.set_xlabel('X')
-        self.ax.set_ylabel('Y') 
-        self.ax.set_zlabel('Z') 
-        self.ax.set_title("Reconstructed Motion (Raw)")
+        self.ax.set_ylabel('Z (Depth)')
+        self.ax.set_zlabel('Y (Height)')
+        self.ax.set_title("Reconstructed Motion (Accumulated Hip)")
         
         ax_slider = plt.axes([0.25, 0.1, 0.65, 0.03], facecolor='lightgoldenrodyellow')
         self.slider = Slider(ax_slider, 'Frame', 0, self.num_frames - 1, valinit=0, valfmt='%0.0f')
@@ -142,10 +148,11 @@ class SkeletonVisualizer:
         frame_idx = int(self.slider.val)
         p = self.data[frame_idx]
         
-        # --- RAW COORDINATES (No Flipping) ---
+        # Mapping: TotalCapture Y=Up -> Matplotlib Z=Up
+        # No Flipping, just standard mapping
         xs = p[:, 0]
-        ys = p[:, 1] 
-        zs = p[:, 2] 
+        ys = p[:, 1] # Depth -> Y axis on plot
+        zs = p[:, 2] # Height -> Z axis on plot
         
         self.scats._offsets3d = (xs, ys, zs)
         
@@ -163,11 +170,11 @@ class SkeletonVisualizer:
 def main():
     print(f"--- Inference (21-Joint Output) on {DEVICE} ---")
     
-    # 1. Init Model (UPDATED FOR 28 JOINTS, 14 FEATS)
+    # 1. Init Model (Updated Config)
     print("1. Init Model...")
     model = MotionTransformer(
-        num_joints=28,      # <--- UPDATED (1 Root + 27 Body)
-        input_feats=14,     # <--- UPDATED (6 Abs + 6 Delta + 2 Pad)
+        num_joints=27,      
+        input_feats=20,     # 20 Features
         num_joints_out=21,  # 21 Output Joints
         d_model=512,
         num_layers=6,
@@ -178,24 +185,18 @@ def main():
 
     # 2. Load Weights
     print(f"2. Loading: {os.path.basename(CHECKPOINT_FILE)}")
-    try:
-        checkpoint = torch.load(CHECKPOINT_FILE, map_location=DEVICE)
-        if 'model_state_dict' in checkpoint:
-            model.load_state_dict(checkpoint['model_state_dict'])
-        else:
-            model.load_state_dict(checkpoint)
-    except Exception as e:
-        print(f"⚠️ Error loading checkpoint: {e}")
-        print("Ensure the checkpoint matches the (28, 14) architecture.")
-        return
-
+    checkpoint = torch.load(CHECKPOINT_FILE, map_location=DEVICE)
+    if 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        model.load_state_dict(checkpoint)
     model.eval()
     
     # 3. Load & Process Data
     print(f"3. Processing: {os.path.basename(INPUT_FILE)}")
     raw_data = np.nan_to_num(np.load(INPUT_FILE).astype(np.float32))
     
-    # Process using Updated Feature Processor (Returns 28, 14)
+    # Process using Updated 20-Feature Processor
     features, _ = process_blazepose_frames(raw_data, WINDOW_SIZE)
     input_tensor = torch.from_numpy(features).to(DEVICE)
     
@@ -206,16 +207,16 @@ def main():
     with torch.no_grad():
         # Sliding window inference
         for i in range(0, len(input_tensor), 1): 
-            batch = input_tensor[i : i+1] 
-            pred = model(batch) 
+            batch = input_tensor[i : i+1] # (1, 64, 27, 20)
+            pred = model(batch) # (1, 64, 21, 6)
             
             # Take the last frame prediction
-            pred_last = pred[0, -1, :, :] 
+            pred_last = pred[0, -1, :, :] # (21, 6)
             predictions_raw.append(pred_last)
             
     full_pred_tensor = torch.stack(predictions_raw) # (L, 21, 6)
     
-    # 5. Reconstruct Skeleton (Accumulated FK)
+    # 5. Reconstruct Skeleton (FK with Hip Accumulation)
     print("5. Reconstructing Skeleton (FK)...")
     reconstructor = TrajectoryFK().to(DEVICE)
     global_positions = reconstructor(full_pred_tensor) # (L, 22, 3)

@@ -105,17 +105,55 @@ class MotionLoss(nn.Module):
             
         return torch.stack(global_pos, dim=2) # (B, S, 22, 3)
 
+    def _accumulate_hip_rot(self, hip_deltas_6d):
+        """
+        Accumulates 6D deltas into a sequence of absolute rotation matrices.
+        R_t = R_{t-1} @ Delta_t
+        Assumes R_0 is Identity.
+        
+        hip_deltas_6d: (B, S, 6)
+        Returns: (B, S, 3, 3)
+        """
+        B, S, _ = hip_deltas_6d.shape
+        device = hip_deltas_6d.device
+        
+        # Convert all deltas to matrices first: (B, S, 3, 3)
+        delta_mats = self._cont6d_to_mat(hip_deltas_6d)
+        
+        # Initialize accumulator: (B, 3, 3) identity
+        curr_rot = torch.eye(3, device=device).unsqueeze(0).expand(B, 3, 3)
+        
+        abs_rots = []
+        for t in range(S):
+            # Delta at time t
+            d = delta_mats[:, t] # (B, 3, 3)
+            
+            # Update: R_new = R_old @ Delta
+            curr_rot = torch.matmul(curr_rot, d)
+            
+            abs_rots.append(curr_rot)
+            
+        return torch.stack(abs_rots, dim=1) # (B, S, 3, 3)
+
     def forward(self, pred_full, target_full, mask=None):
         """
         pred_full: (B, S, 21, 6)
         target_full: (B, S, 21, 6)
         """
         # --- 1. HIP ORIENTATION LOSS (Index 0) ---
-        # Was 'l_root_rot'. Measures how well we predict the Hip orientation.
-        l_root_rot = self.mse(pred_full[:, :, 0, :], target_full[:, :, 0, :])
+        # A. Frame-to-Frame Delta Loss
+        l_root_delta = self.mse(pred_full[:, :, 0, :], target_full[:, :, 0, :])
         
-        # We don't have Position Delta anymore, so l_root is just rotation
-        l_root = l_root_rot
+        # B. Trajectory Accumulation Loss (NEW)
+        # Reconstruct absolute orientation sequence from deltas
+        pred_hip_abs = self._accumulate_hip_rot(pred_full[:, :, 0, :])
+        gt_hip_abs = self._accumulate_hip_rot(target_full[:, :, 0, :])
+        
+        l_root_accum = self.mse(pred_hip_abs, gt_hip_abs)
+        
+        # Combine: Weighted sum for Root Loss
+        # We give accumulated loss significant weight to kill drift
+        l_root = l_root_delta + 1.0 * l_root_accum
 
         # --- 2. BODY ROTATION LOSS (Indices 1-20) ---
         l_rot = self.mse(pred_full[:, :, 1:], target_full[:, :, 1:])
@@ -134,11 +172,6 @@ class MotionLoss(nn.Module):
         l_vel = self.mse(pred_vel, gt_vel)
         
         # --- DISABLED / COMMENTED OUT LOSSES ---
-        # l_smooth = ... (Accel)
-        # l_contact = ... (Foot Skate)
-        # l_floor = ... (Height)
-        # l_tilt = ... (Upright)
-        
         l_smooth = torch.tensor(0.0, device=pred_full.device)
         l_contact = torch.tensor(0.0, device=pred_full.device)
         
@@ -153,6 +186,7 @@ class MotionLoss(nn.Module):
         
         return loss, {
             "l_root": l_root.item(),
+            "l_root_acc": l_root_accum.item(), # Log this!
             "l_mpjpe": l_pos.item(),
             "l_rot": l_rot.item(),
             "l_contact": l_contact.item()
