@@ -58,7 +58,7 @@ CONFIG = {
     "max_len": 512,
     
     # Training
-    "batch_size": 8,       # Reverted to 32 for stability (8 is too noisy)
+    "batch_size": 4,       # Reverted to 32 for stability (8 is too noisy)
     "accumulation_steps": 4,  # NEW: Effective Batch Size = 8 * 4 = 32
     "num_workers": 6,
     "max_windows_train": 64, 
@@ -85,7 +85,8 @@ CONFIG = {
     "gradient_clip": 1.0,
 }
 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+# Note: expandable_segments not supported on Windows
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
 def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, device, epoch):
     model.train()
@@ -160,6 +161,10 @@ def validate(model, loader, device, epoch):
     Uses the external evaluate_motion function to compute:
     MPJPE (mm), Root Rot (deg), Slide (mm)
     """
+    
+    # Free memory before validation
+    torch.cuda.empty_cache()
+    
     model.eval()
     pbar = tqdm(loader, desc=f"Epoch {epoch} [VAL]")
     
@@ -203,7 +208,7 @@ def main():
     logger = setup_logging(CONFIG["log_dir"], log_file="train.log")
     device = CONFIG["device"]
     
-    logger.info(f"🚀 Starting Deep Rotation Training (L={CONFIG['num_layers']}) on {device}")
+    logger.info(f"[START] Deep Rotation Training (L={CONFIG['num_layers']}) on {device}")
     
     # 1. Data
     train_dataset = PoseSequenceDataset(CONFIG["data_root"], CONFIG["window_size"], "train", CONFIG["max_windows_train"])
@@ -225,6 +230,12 @@ def main():
         d_ff=CONFIG["d_ff"], 
         dropout=CONFIG["dropout"]
     ).to(device)
+    
+    # Display Model Summary
+    try:
+        summary(model, input_size=(CONFIG["batch_size"], CONFIG["window_size"], CONFIG["input_feats"]))
+    except Exception as e:
+        logger.warning(f"[WARN] Could not print model summary: {e}")
     
     # 3. Optimizer & Loss
     optimizer = optim.AdamW(model.parameters(), lr=CONFIG["lr"], weight_decay=CONFIG["weight_decay"])
@@ -253,7 +264,7 @@ def main():
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         start_epoch = checkpoint.get('epoch', 0) + 1
         best_mpjpe = checkpoint.get('best_mpjpe', float('inf'))
-        logger.info(f"🚀 Resuming from epoch {start_epoch} (Best MPJPE: {best_mpjpe:.2f})")
+        logger.info(f"[RESUME] Resuming from epoch {start_epoch} (Best MPJPE: {best_mpjpe:.2f})")
 
     # 5. Scheduler
     total_steps = len(train_loader) * CONFIG["epochs"]
@@ -264,9 +275,9 @@ def main():
     if os.path.exists(checkpoint_load_path) and 'scheduler_state_dict' in checkpoint:
         try:
             scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-            logger.info("✅ Scheduler state loaded.")
+            logger.info("[OK] Scheduler state loaded.")
         except Exception as e:
-            logger.warning(f"⚠️ Could not load scheduler state: {e}")
+            logger.warning(f"[WARN] Could not load scheduler state: {e}")
 
     # 6. Loop
     for epoch in range(start_epoch, CONFIG["epochs"] + 1):
@@ -277,6 +288,11 @@ def main():
         logger.info(f"[TRAIN] Loss: {train_stats['loss']:.5f} | Root: {train_stats.get('l_root',0):.4f} | RAcc: {train_stats.get('l_root_acc', 0):.4f} | Pos: {train_stats.get('l_mpjpe', 0):.4f}")
         
         # Validate
+        
+        # Free memory from training loop
+        del train_stats
+        torch.cuda.empty_cache()
+        
         metrics = validate(model, val_loader, device, epoch)
         # UPDATED LOGGING: Removed RootPos
         logger.info(f"[VAL] MPJPE: {metrics['MPJPE']:.2f}mm | RotDeg: {metrics.get('Root_Rot_Deg', 0):.2f}° | Slide: {metrics.get('Foot_Slide', 0):.2f}mm")
@@ -295,14 +311,20 @@ def main():
         # 2. Save "Latest" (Every Epoch)
         latest_path = os.path.join(CONFIG["save_dir"], "latest_checkpoint.pth")
         torch.save(checkpoint, latest_path)
-        logger.info(f"💾 Epoch {epoch} checkpoint saved.")
+        logger.info(f"[SAVE] Epoch {epoch} checkpoint saved.")
+
+        # 3. Save Every 10 Epochs
+        if epoch % 10 == 0:
+            periodic_path = os.path.join(CONFIG["save_dir"], f"checkpoint_epoch_{epoch}.pth")
+            torch.save(checkpoint, periodic_path)
+            logger.info(f"[SAVE] Periodic checkpoint saved: {periodic_path}")
         
         # 3. Save "Best" (Conditional)
         if metrics['MPJPE'] < best_mpjpe:
             best_mpjpe = metrics['MPJPE']
             best_path = os.path.join(CONFIG["save_dir"], "best_model.pth")
             torch.save(checkpoint, best_path)
-            logger.info(f"⭐ New Best Model Saved! ({best_mpjpe:.2f}mm)")
+            logger.info(f"[BEST] New Best Model Saved! ({best_mpjpe:.2f}mm)")
 
 if __name__ == "__main__":
     os.makedirs(CONFIG["save_dir"], exist_ok=True)
